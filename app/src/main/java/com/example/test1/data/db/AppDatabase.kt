@@ -15,7 +15,7 @@ import com.example.test1.data.db.entity.RecipeEntity
 
 @Database(
     entities = [FoodEntryEntity::class, RecipeEntity::class, DailyGoalEntity::class, ChatMessageEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

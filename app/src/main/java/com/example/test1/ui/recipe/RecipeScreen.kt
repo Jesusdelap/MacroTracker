@@ -68,7 +68,7 @@ private fun cleanAiText(response: String): String {
     val idx = response.indexOf(RECIPE_JSON_MARKER)
     if (idx < 0) return response.trim()
     val before = response.substring(0, idx).trimEnd()
-    val after = response.substring(idx + RECIPE_JSON_MARKER.length)
+    val after  = response.substring(idx + RECIPE_JSON_MARKER.length)
         .let { if (it.contains('\n')) it.substringAfter('\n').trimStart() else "" }
     return listOf(before, after).filter { it.isNotBlank() }.joinToString("\n").trim()
 }
@@ -82,7 +82,8 @@ fun RecipeScreen() {
         RecipeViewModel(app.recipeRepository, app.foodRepository)
     }
     val uiState by vm.uiState.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddDialog  by remember { mutableStateOf(false) }
+    var editingRecipe  by remember { mutableStateOf<RecipeEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -97,15 +98,15 @@ fun RecipeScreen() {
                         .fillMaxWidth()
                         .height(56.dp)
                         .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment     = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
                         Text(
                             "Recetario",
-                            style = MaterialTheme.typography.titleLarge,
+                            style      = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color      = MaterialTheme.colorScheme.onBackground
                         )
                         if (uiState.recipes.isNotEmpty()) {
                             Text(
@@ -117,57 +118,46 @@ fun RecipeScreen() {
                     }
                 }
                 HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
+                    color     = MaterialTheme.colorScheme.outlineVariant,
                     thickness = 0.5.dp
                 )
             }
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { showAddDialog = true },
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("Nueva receta") },
+                onClick        = { showAddDialog = true },
+                icon           = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text           = { Text("Nueva receta") },
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                contentColor   = MaterialTheme.colorScheme.onPrimary
             )
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // Search bar
             OutlinedTextField(
-                value = uiState.searchQuery,
+                value         = uiState.searchQuery,
                 onValueChange = vm::onSearchChange,
-                modifier = Modifier
+                modifier      = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                placeholder = { Text("Buscar receta...") },
-                leadingIcon = {
-                    Icon(
-                        Icons.Filled.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    .padding(horizontal = Spacing.lg, vertical = 10.dp),
+                placeholder  = { Text("Buscar receta…") },
+                leadingIcon  = {
+                    Icon(Icons.Filled.Search, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 },
                 trailingIcon = {
-                    AnimatedVisibility(
-                        visible = uiState.searchQuery.isNotBlank(),
-                        enter = fadeIn(),
-                        exit = fadeOut()
-                    ) {
+                    AnimatedVisibility(visible = uiState.searchQuery.isNotBlank(), enter = fadeIn(), exit = fadeOut()) {
                         IconButton(onClick = { vm.onSearchChange("") }) {
-                            Icon(
-                                Icons.Filled.Clear,
-                                contentDescription = "Limpiar",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Icon(Icons.Filled.Clear, contentDescription = "Limpiar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
+                shape      = RoundedCornerShape(14.dp),
+                colors     = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary
+                    focusedBorderColor   = MaterialTheme.colorScheme.primary
                 )
             )
 
@@ -175,14 +165,16 @@ fun RecipeScreen() {
                 EmptyState(hasSearch = uiState.searchQuery.isNotBlank(), query = uiState.searchQuery)
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 96.dp),
+                    contentPadding      = PaddingValues(start = Spacing.lg, top = Spacing.xs, end = Spacing.lg, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(uiState.recipes, key = { it.id }) { recipe ->
                         RecipeCard(
-                            recipe = recipe,
-                            onAddToToday = { vm.addToToday(recipe) },
-                            onDelete = { vm.deleteRecipe(recipe) }
+                            recipe              = recipe,
+                            onAddToToday        = { vm.addToToday(recipe) },
+                            onAddToTodayWithGrams = { grams -> vm.addToTodayWithGrams(recipe, grams) },
+                            onDelete            = { vm.deleteRecipe(recipe) },
+                            onEdit              = { editingRecipe = recipe }
                         )
                     }
                 }
@@ -193,8 +185,17 @@ fun RecipeScreen() {
     if (showAddDialog) {
         RecipeCreationDialog(
             geminiService = app.geminiService,
-            onSave = { recipe -> vm.addRecipe(recipe); showAddDialog = false },
-            onDismiss = { showAddDialog = false }
+            onSave        = { recipe -> vm.addRecipe(recipe); showAddDialog = false },
+            onDismiss     = { showAddDialog = false }
+        )
+    }
+
+    editingRecipe?.let { recipe ->
+        RecipeCreationDialog(
+            geminiService  = app.geminiService,
+            editingRecipe  = recipe,
+            onSave         = { updated -> vm.updateRecipe(updated); editingRecipe = null },
+            onDismiss      = { editingRecipe = null }
         )
     }
 }
@@ -207,7 +208,7 @@ private fun EmptyState(hasSearch: Boolean, query: String) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-            modifier = Modifier.padding(Spacing.xxxl)
+            modifier            = Modifier.padding(Spacing.xxxl)
         ) {
             Icon(
                 imageVector        = if (hasSearch) Icons.Filled.SearchOff else Icons.Filled.Book,
@@ -240,11 +241,18 @@ private fun EmptyState(hasSearch: Boolean, query: String) {
 // ─── Recipe card ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun RecipeCard(recipe: RecipeEntity, onAddToToday: () -> Unit, onDelete: () -> Unit) {
+private fun RecipeCard(
+    recipe: RecipeEntity,
+    onAddToToday: () -> Unit,
+    onAddToTodayWithGrams: (Float) -> Unit,
+    onDelete: () -> Unit,
+    onEdit: () -> Unit
+) {
     val dateStr = remember(recipe.createdAt) {
         SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(recipe.createdAt))
     }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showWeightPicker  by remember { mutableStateOf(false) }
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -262,14 +270,20 @@ private fun RecipeCard(recipe: RecipeEntity, onAddToToday: () -> Unit, onDelete:
             confirmButton = {
                 TextButton(
                     onClick = { showDeleteConfirm = false; onDelete() },
-                    colors  = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
+                    colors  = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text("Eliminar") }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
             }
+        )
+    }
+
+    if (showWeightPicker) {
+        WeightPickerDialog(
+            recipe     = recipe,
+            onConfirm  = { grams -> showWeightPicker = false; onAddToTodayWithGrams(grams) },
+            onDismiss  = { showWeightPicker = false }
         )
     }
 
@@ -292,12 +306,8 @@ private fun RecipeCard(recipe: RecipeEntity, onAddToToday: () -> Unit, onDelete:
                     .padding(end = Spacing.lg),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                Icon(
-                    imageVector        = Icons.Filled.Delete,
-                    contentDescription = "Eliminar",
-                    tint               = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier           = Modifier.size(20.dp)
-                )
+                Icon(Icons.Filled.Delete, contentDescription = "Eliminar",
+                    tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
             }
         }
     ) {
@@ -307,11 +317,8 @@ private fun RecipeCard(recipe: RecipeEntity, onAddToToday: () -> Unit, onDelete:
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
+                modifier = Modifier.fillMaxWidth().padding(20.dp)
             ) {
-                // Header: nombre + botón añadir
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -330,42 +337,67 @@ private fun RecipeCard(recipe: RecipeEntity, onAddToToday: () -> Unit, onDelete:
                             verticalAlignment     = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                         ) {
-                            Icon(
-                                Icons.Filled.LocalFireDepartment,
-                                contentDescription = null,
-                                modifier = Modifier.size(13.dp),
-                                tint     = MaterialTheme.macroColors.calories
-                            )
+                            Icon(Icons.Filled.LocalFireDepartment, contentDescription = null,
+                                modifier = Modifier.size(13.dp), tint = MaterialTheme.macroColors.calories)
                             Text(
-                                text  = "${recipe.kcalPerServing} kcal",
+                                text  = "${recipe.kcalPerServing} kcal${if (recipe.isPer100g) " / 100g" else ""}",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.macroColors.calories
                             )
                             Text(
-                                text  = "· ${recipe.servings.toInt()} rac. · $dateStr",
+                                text  = if (recipe.isPer100g) "· $dateStr" else "· ${recipe.servings.toInt()} rac. · $dateStr",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TextTertiary
                             )
                         }
                     }
-                    FilledTonalButton(
-                        onClick        = onAddToToday,
-                        contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
-                        modifier       = Modifier.height(36.dp)
+                    // Edit + Add buttons
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(Spacing.xs))
-                        Text("Añadir", style = MaterialTheme.typography.labelLarge)
+                        IconButton(
+                            onClick  = onEdit,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Editar",
+                                modifier = Modifier.size(16.dp),
+                                tint     = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        FilledTonalButton(
+                            onClick        = { if (recipe.isPer100g) showWeightPicker = true else onAddToToday() },
+                            contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
+                            modifier       = Modifier.height(36.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(Spacing.xs))
+                            Text("Añadir", style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
 
                 Spacer(Modifier.height(Spacing.md))
 
-                // MacroPills: proteína · carbs · grasas
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     MacroPill(MacroType.PROTEIN, "${recipe.protein.toInt()}g")
                     MacroPill(MacroType.CARBS,   "${recipe.carbs.toInt()}g")
                     MacroPill(MacroType.FAT,     "${recipe.fat.toInt()}g")
+                    if (recipe.isPer100g) {
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.secondaryContainer,
+                                    AppShapeSm
+                                )
+                                .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
+                        ) {
+                            Text(
+                                "por 100g",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
                 }
 
                 if (recipe.ingredients.isNotBlank()) {
@@ -383,20 +415,81 @@ private fun RecipeCard(recipe: RecipeEntity, onAddToToday: () -> Unit, onDelete:
     }
 }
 
-// ─── Full-screen creation dialog ───────────────────────────────────────────────
+// ─── Weight picker dialog ──────────────────────────────────────────────────────
+
+@Composable
+private fun WeightPickerDialog(
+    recipe: RecipeEntity,
+    onConfirm: (Float) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val haptics = LocalHapticFeedback.current
+    var grams by remember { mutableStateOf("") }
+    val gramsF = grams.toFloatOrNull()
+    val ratio  = (gramsF ?: 0f) / 100f
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(recipe.name, style = MaterialTheme.typography.titleMedium) },
+        text  = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+                Text(
+                    "¿Cuántos gramos vas a tomar?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value         = grams,
+                    onValueChange = { grams = it },
+                    label         = { Text("Gramos") },
+                    suffix        = { Text("g") },
+                    singleLine    = true,
+                    shape         = AppShapeMd,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier      = Modifier.fillMaxWidth()
+                )
+                if (gramsF != null && gramsF > 0f) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        MacroPill(MacroType.CALORIES, "${(recipe.kcalPerServing * ratio).toInt()}",  modifier = Modifier.weight(1f))
+                        MacroPill(MacroType.PROTEIN,  "${"%.1f".format(recipe.protein * ratio)}g",  modifier = Modifier.weight(1f))
+                        MacroPill(MacroType.CARBS,    "${"%.1f".format(recipe.carbs   * ratio)}g",  modifier = Modifier.weight(1f))
+                        MacroPill(MacroType.FAT,      "${"%.1f".format(recipe.fat     * ratio)}g",  modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick  = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    gramsF?.let { onConfirm(it) }
+                },
+                enabled = gramsF != null && gramsF > 0f,
+                shape   = AppShapeMd
+            ) { Text("Añadir") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
+}
+
+// ─── Full-screen creation / edit dialog ────────────────────────────────────────
 
 @Composable
 internal fun RecipeCreationDialog(
     geminiService: GeminiService,
     initialValues: MacroResult? = null,
+    editingRecipe: RecipeEntity? = null,
     onSave: (RecipeEntity) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    val isEditing    = editingRecipe != null
+    var selectedTab  by remember { mutableIntStateOf(0) }
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties       = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Scaffold(
@@ -404,7 +497,11 @@ internal fun RecipeCreationDialog(
                     TopAppBar(
                         title = {
                             Text(
-                                if (initialValues != null) "Guardar como receta" else "Nueva receta",
+                                when {
+                                    isEditing       -> "Editar receta"
+                                    initialValues != null -> "Guardar como receta"
+                                    else            -> "Nueva receta"
+                                },
                                 fontWeight = FontWeight.SemiBold
                             )
                         },
@@ -420,22 +517,24 @@ internal fun RecipeCreationDialog(
                 }
             ) { padding ->
                 Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                    PrimaryTabRow(selectedTabIndex = selectedTab) {
-                        Tab(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            text = { Text("Manual") },
-                            icon = { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        )
-                        Tab(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            text = { Text("Con IA") },
-                            icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        )
+                    if (!isEditing) {
+                        PrimaryTabRow(selectedTabIndex = selectedTab) {
+                            Tab(
+                                selected = selectedTab == 0,
+                                onClick  = { selectedTab = 0 },
+                                text     = { Text("Manual") },
+                                icon     = { Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            )
+                            Tab(
+                                selected = selectedTab == 1,
+                                onClick  = { selectedTab = 1 },
+                                text     = { Text("Con IA") },
+                                icon     = { Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            )
+                        }
                     }
-                    if (selectedTab == 0) {
-                        ManualTab(initialValues = initialValues, onSave = onSave)
+                    if (selectedTab == 0 || isEditing) {
+                        ManualTab(initialValues = initialValues, editingRecipe = editingRecipe, onSave = onSave)
                     } else {
                         AiTab(geminiService = geminiService, onSave = onSave)
                     }
@@ -465,28 +564,28 @@ private fun RecipeTextField(
     maxLines: Int = 5
 ) {
     OutlinedTextField(
-        value = value,
+        value         = value,
         onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        placeholder = {
+        modifier      = Modifier.fillMaxWidth(),
+        placeholder   = {
             Row {
                 Text(placeholder, style = MaterialTheme.typography.bodyMedium, color = TextTertiary)
                 if (required) Text(" *", style = MaterialTheme.typography.bodyMedium,
                     color = SemanticError.copy(alpha = 0.8f))
             }
         },
-        textStyle = MaterialTheme.typography.bodyMedium,
+        textStyle  = MaterialTheme.typography.bodyMedium,
         singleLine = singleLine,
-        minLines = minLines,
-        maxLines = maxLines,
-        shape = AppShapeMd,
-        colors = OutlinedTextFieldDefaults.colors(
-            unfocusedBorderColor       = Color.Transparent,
-            focusedBorderColor         = MaterialTheme.colorScheme.primary,
-            unfocusedContainerColor    = MaterialTheme.colorScheme.surfaceVariant,
-            focusedContainerColor      = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedTextColor         = MaterialTheme.colorScheme.onSurface,
-            focusedTextColor           = MaterialTheme.colorScheme.onSurface
+        minLines   = minLines,
+        maxLines   = maxLines,
+        shape      = AppShapeMd,
+        colors     = OutlinedTextFieldDefaults.colors(
+            unfocusedBorderColor    = Color.Transparent,
+            focusedBorderColor      = MaterialTheme.colorScheme.primary,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedContainerColor   = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedTextColor      = MaterialTheme.colorScheme.onSurface,
+            focusedTextColor        = MaterialTheme.colorScheme.onSurface
         )
     )
 }
@@ -499,10 +598,10 @@ private fun MacroInputRow(
     unit: String = "",
     required: Boolean = false
 ) {
-    var isFocused by remember { mutableStateOf(false) }
-    val primary      = MaterialTheme.colorScheme.primary
-    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
-    val onSurface    = MaterialTheme.colorScheme.onSurface
+    var isFocused    by remember { mutableStateOf(false) }
+    val primary       = MaterialTheme.colorScheme.primary
+    val surfaceColor  = MaterialTheme.colorScheme.surfaceVariant
+    val onSurface     = MaterialTheme.colorScheme.onSurface
 
     Box(
         modifier = Modifier
@@ -514,8 +613,8 @@ private fun MacroInputRow(
         contentAlignment = Alignment.CenterStart
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
@@ -530,20 +629,20 @@ private fun MacroInputRow(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
                 BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(
-                        color = onSurface,
-                        textAlign = TextAlign.End,
+                    value           = value,
+                    onValueChange   = onValueChange,
+                    textStyle       = MaterialTheme.typography.bodyMedium.copy(
+                        color               = onSurface,
+                        textAlign           = TextAlign.End,
                         fontFeatureSettings = FontFeatureTnum
                     ),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    cursorBrush = SolidColor(primary),
-                    modifier = Modifier
+                    singleLine      = true,
+                    cursorBrush     = SolidColor(primary),
+                    modifier        = Modifier
                         .widthIn(min = 48.dp, max = 100.dp)
                         .onFocusChanged { isFocused = it.isFocused },
-                    decorationBox = { innerTextField ->
+                    decorationBox   = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterEnd) {
                             if (value.isEmpty()) {
                                 Text("—",
@@ -566,21 +665,43 @@ private fun MacroInputRow(
 // ─── Manual tab ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ManualTab(initialValues: MacroResult? = null, onSave: (RecipeEntity) -> Unit) {
-    val haptics   = LocalHapticFeedback.current
-    var inputMode by remember { mutableStateOf(InputMode.PorRacion) }
-    var name     by remember { mutableStateOf(initialValues?.name ?: "") }
-    var notes    by remember { mutableStateOf("") }
-    var servings by remember { mutableStateOf("1") }
-    var kcal     by remember { mutableStateOf(initialValues?.cal?.toString() ?: "") }
-    var protein  by remember { mutableStateOf(initialValues?.prot?.toString() ?: "") }
-    var carbs    by remember { mutableStateOf(initialValues?.carb?.toString() ?: "") }
-    var fat      by remember { mutableStateOf(initialValues?.fat?.toString() ?: "") }
-    var grams    by remember { mutableStateOf("") }
-    var kcal100  by remember { mutableStateOf("") }
-    var prot100  by remember { mutableStateOf("") }
-    var carbs100 by remember { mutableStateOf("") }
-    var fat100   by remember { mutableStateOf("") }
+private fun ManualTab(
+    initialValues: MacroResult? = null,
+    editingRecipe: RecipeEntity? = null,
+    onSave: (RecipeEntity) -> Unit
+) {
+    val haptics = LocalHapticFeedback.current
+
+    // Pre-fill mode from editing recipe
+    val startAs100g = editingRecipe?.isPer100g == true
+    var inputMode by remember { mutableStateOf(if (startAs100g) InputMode.Por100g else InputMode.PorRacion) }
+
+    // PorRacion fields
+    var name    by remember { mutableStateOf(editingRecipe?.name ?: initialValues?.name ?: "") }
+    var notes   by remember { mutableStateOf(editingRecipe?.ingredients ?: "") }
+    var servings by remember { mutableStateOf(editingRecipe?.servings?.toInt()?.toString() ?: "1") }
+    var kcal    by remember { mutableStateOf(
+        if (!startAs100g) editingRecipe?.kcalPerServing?.toString() ?: initialValues?.cal?.toString() ?: ""
+        else ""
+    ) }
+    var protein by remember { mutableStateOf(
+        if (!startAs100g) editingRecipe?.protein?.toString() ?: initialValues?.prot?.toString() ?: ""
+        else ""
+    ) }
+    var carbs   by remember { mutableStateOf(
+        if (!startAs100g) editingRecipe?.carbs?.toString() ?: initialValues?.carb?.toString() ?: ""
+        else ""
+    ) }
+    var fat     by remember { mutableStateOf(
+        if (!startAs100g) editingRecipe?.fat?.toString() ?: initialValues?.fat?.toString() ?: ""
+        else ""
+    ) }
+
+    // Por100g fields
+    var kcal100  by remember { mutableStateOf(if (startAs100g) editingRecipe?.kcalPerServing?.toString() ?: "" else "") }
+    var prot100  by remember { mutableStateOf(if (startAs100g) editingRecipe?.protein?.toString() ?: "" else "") }
+    var carbs100 by remember { mutableStateOf(if (startAs100g) editingRecipe?.carbs?.toString() ?: "" else "") }
+    var fat100   by remember { mutableStateOf(if (startAs100g) editingRecipe?.fat?.toString() ?: "" else "") }
 
     Column(
         modifier = Modifier
@@ -588,7 +709,7 @@ private fun ManualTab(initialValues: MacroResult? = null, onSave: (RecipeEntity)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = Spacing.xxl)
     ) {
-        // ── INFORMACIÓN BÁSICA ────────────────────────────────────────────────
+        // ── INFORMACIÓN BÁSICA ────────────────────────────────────────────
         FormSectionHeader("INFORMACIÓN BÁSICA")
         Spacer(Modifier.height(Spacing.lg))
         RecipeTextField(
@@ -603,7 +724,7 @@ private fun ManualTab(initialValues: MacroResult? = null, onSave: (RecipeEntity)
 
         Spacer(Modifier.height(Spacing.xxl))
 
-        // ── PORCIONES ─────────────────────────────────────────────────────────
+        // ── PORCIONES ─────────────────────────────────────────────────────
         FormSectionHeader("PORCIONES")
         Spacer(Modifier.height(Spacing.lg))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -622,14 +743,18 @@ private fun ManualTab(initialValues: MacroResult? = null, onSave: (RecipeEntity)
         if (inputMode == InputMode.PorRacion) {
             MacroInputRow("Raciones", servings, { servings = it })
         } else {
-            MacroInputRow("Gramos a consumir", grams, { grams = it }, required = true)
+            Text(
+                "Se pedirá el peso al añadir esta receta al registro.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextTertiary
+            )
         }
 
         Spacer(Modifier.height(Spacing.xxl))
 
-        // ── VALORES NUTRICIONALES ─────────────────────────────────────────────
+        // ── VALORES NUTRICIONALES ─────────────────────────────────────────
         FormSectionHeader(
-            if (inputMode == InputMode.PorRacion) "VALORES NUTRICIONALES" else "MACROS POR 100G"
+            if (inputMode == InputMode.PorRacion) "VALORES NUTRICIONALES (POR RACIÓN)" else "VALORES NUTRICIONALES (POR 100G)"
         )
         Spacer(Modifier.height(Spacing.lg))
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -646,34 +771,12 @@ private fun ManualTab(initialValues: MacroResult? = null, onSave: (RecipeEntity)
             }
         }
 
-        // Vista previa del cálculo (solo modo 100g con todos los campos rellenos)
-        val gramsF = grams.toFloatOrNull()
-        val k100   = kcal100.toIntOrNull()
-        val p100   = prot100.toFloatOrNull()
-        val c100   = carbs100.toFloatOrNull()
-        val f100   = fat100.toFloatOrNull()
-        if (inputMode == InputMode.Por100g &&
-            gramsF != null && k100 != null && p100 != null && c100 != null && f100 != null) {
-            val r = gramsF / 100f
-            Spacer(Modifier.height(Spacing.lg))
-            Surface(shape = AppShapeMd, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)) {
-                Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Text("Total para ${grams}g:", style = MaterialTheme.typography.labelMedium, color = TextTertiary)
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        MacroPill(MacroType.CALORIES, "${(k100 * r).toInt()}")
-                        MacroPill(MacroType.PROTEIN,  "${"%.1f".format(p100 * r)}g")
-                        MacroPill(MacroType.CARBS,    "${"%.1f".format(c100 * r)}g")
-                        MacroPill(MacroType.FAT,      "${"%.1f".format(f100 * r)}g")
-                    }
-                }
-            }
-        }
-
         Spacer(Modifier.height(Spacing.xxl))
 
-        // ── GUARDAR ───────────────────────────────────────────────────────────
+        // ── GUARDAR ───────────────────────────────────────────────────────
         Button(
             modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape    = AppShapeMd,
             onClick  = {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 if (name.isBlank()) return@Button
@@ -683,27 +786,41 @@ private fun ManualTab(initialValues: MacroResult? = null, onSave: (RecipeEntity)
                     val c = carbs.toFloatOrNull() ?: return@Button
                     val f = fat.toFloatOrNull() ?: return@Button
                     onSave(RecipeEntity(
-                        name = name.trim(), servings = servings.toFloatOrNull() ?: 1f,
-                        kcalPerServing = k, protein = p, carbs = c, fat = f,
-                        ingredients = notes.trim()
+                        id             = editingRecipe?.id ?: 0,
+                        name           = name.trim(),
+                        servings       = servings.toFloatOrNull() ?: 1f,
+                        kcalPerServing = k,
+                        protein        = p,
+                        carbs          = c,
+                        fat            = f,
+                        ingredients    = notes.trim(),
+                        isPer100g      = false,
+                        createdAt      = editingRecipe?.createdAt ?: System.currentTimeMillis()
                     ))
                 } else {
-                    val g = grams.toFloatOrNull() ?: return@Button
                     val k = kcal100.toIntOrNull() ?: return@Button
                     val p = prot100.toFloatOrNull() ?: return@Button
                     val c = carbs100.toFloatOrNull() ?: return@Button
                     val f = fat100.toFloatOrNull() ?: return@Button
-                    val r = g / 100f
                     onSave(RecipeEntity(
-                        name = name.trim(), servings = 1f,
-                        kcalPerServing = (k * r).toInt(), protein = p * r,
-                        carbs = c * r, fat = f * r, ingredients = notes.trim()
+                        id             = editingRecipe?.id ?: 0,
+                        name           = name.trim(),
+                        servings       = 1f,
+                        kcalPerServing = k,
+                        protein        = p,
+                        carbs          = c,
+                        fat            = f,
+                        ingredients    = notes.trim(),
+                        isPer100g      = true,
+                        createdAt      = editingRecipe?.createdAt ?: System.currentTimeMillis()
                     ))
                 }
-            },
-            shape = AppShapeMd
+            }
         ) {
-            Text("Guardar receta", style = MaterialTheme.typography.labelLarge)
+            Text(
+                if (editingRecipe != null) "Guardar cambios" else "Guardar receta",
+                style = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }
@@ -712,16 +829,17 @@ private fun ManualTab(initialValues: MacroResult? = null, onSave: (RecipeEntity)
 
 @Composable
 private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) {
-    val haptics  = LocalHapticFeedback.current
     val greeting = "¡Hola! Cuéntame la receta que quieres crear: nombre e ingredientes con sus cantidades."
-    var messages by remember { mutableStateOf(listOf(AiMsg(greeting, isUser = false, isInitial = true))) }
-    var inputText by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
+    var messages       by remember { mutableStateOf(listOf(AiMsg(greeting, isUser = false, isInitial = true))) }
+    var inputText      by remember { mutableStateOf("") }
+    var isLoading      by remember { mutableStateOf(false) }
     var extractedRecipe by remember { mutableStateOf<MacroResult?>(null) }
-    var aiName by remember { mutableStateOf("") }
-    var aiNotes by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    var aiName         by remember { mutableStateOf("") }
+    var aiNotes        by remember { mutableStateOf("") }
+    var aiPer100g      by remember { mutableStateOf(false) }
+    val haptics        = LocalHapticFeedback.current
+    val scope          = rememberCoroutineScope()
+    val listState      = rememberLazyListState()
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
@@ -730,9 +848,9 @@ private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) 
     fun send() {
         val text = inputText.trim()
         if (text.isBlank() || isLoading) return
-        messages = messages + AiMsg(text, isUser = true)
-        inputText = ""
-        isLoading = true
+        messages   = messages + AiMsg(text, isUser = true)
+        inputText  = ""
+        isLoading  = true
         scope.launch {
             val history = messages
                 .filter { !it.isInitial }
@@ -759,30 +877,31 @@ private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) 
 
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            state           = listState,
+            modifier        = Modifier.weight(1f),
+            contentPadding  = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             items(messages) { msg -> AiChatBubble(msg) }
             if (isLoading) {
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(Spacing.sm),
                         horizontalArrangement = Arrangement.Start,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment     = Alignment.CenterVertically
                     ) {
                         Surface(
                             shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier              = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                                verticalAlignment     = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                             ) {
                                 CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                                Text("Analizando...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Analizando…", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -796,42 +915,70 @@ private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) 
                 HorizontalDivider()
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier            = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                            Text("Receta detectada", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Row(
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        ) {
+                            Icon(Icons.Filled.AutoAwesome, contentDescription = null,
+                                modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                            Text("Receta detectada", style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold)
                         }
                         OutlinedTextField(
                             value = aiName, onValueChange = { aiName = it },
                             label = { Text("Nombre") }, singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            modifier = Modifier.fillMaxWidth(), shape = AppShapeMd
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                             MacroPill(MacroType.CALORIES, "${recipe.cal}")
                             MacroPill(MacroType.PROTEIN,  "${recipe.prot}g")
                             MacroPill(MacroType.CARBS,    "${recipe.carb}g")
                             MacroPill(MacroType.FAT,      "${recipe.fat}g")
                         }
+                        // Per-100g toggle
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Valores por 100g", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "Se pedirá el peso al añadir al registro",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextTertiary
+                                )
+                            }
+                            Switch(checked = aiPer100g, onCheckedChange = { aiPer100g = it })
+                        }
                         OutlinedTextField(
                             value = aiNotes, onValueChange = { aiNotes = it },
                             label = { Text("Notas / Ingredientes") },
-                            maxLines = 3, modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            maxLines = 3, modifier = Modifier.fillMaxWidth(), shape = AppShapeMd
                         )
                         Button(
                             modifier = Modifier.fillMaxWidth().height(46.dp),
-                            onClick = {
+                            shape    = AppShapeMd,
+                            onClick  = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 val finalName = aiName.trim().ifBlank { recipe.name }
-                                onSave(RecipeEntity(name = finalName, servings = 1f, kcalPerServing = recipe.cal, protein = recipe.prot, carbs = recipe.carb, fat = recipe.fat, ingredients = aiNotes.trim()))
-                            },
-                            shape = RoundedCornerShape(12.dp)
+                                onSave(RecipeEntity(
+                                    name           = finalName,
+                                    servings       = 1f,
+                                    kcalPerServing = recipe.cal,
+                                    protein        = recipe.prot,
+                                    carbs          = recipe.carb,
+                                    fat            = recipe.fat,
+                                    ingredients    = aiNotes.trim(),
+                                    isPer100g      = aiPer100g
+                                ))
+                            }
                         ) {
                             Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(Spacing.sm))
                             Text("Guardar receta", fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -841,26 +988,26 @@ private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) 
 
         HorizontalDivider()
         Row(
-            modifier = Modifier
+            modifier          = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
             verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             OutlinedTextField(
-                value = inputText,
+                value         = inputText,
                 onValueChange = { inputText = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Describe tu receta...") },
-                maxLines = 3,
-                shape = RoundedCornerShape(16.dp)
+                modifier      = Modifier.weight(1f),
+                placeholder   = { Text("Describe tu receta…") },
+                maxLines      = 3,
+                shape         = AppShapeLg
             )
             IconButton(
-                onClick = { send() },
-                enabled = inputText.isNotBlank() && !isLoading,
+                onClick  = { send() },
+                enabled  = inputText.isNotBlank() && !isLoading,
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(AppShapeMd)
                     .background(
                         if (inputText.isNotBlank() && !isLoading)
                             MaterialTheme.colorScheme.primary
@@ -885,25 +1032,24 @@ private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) 
 private fun AiChatBubble(msg: AiMsg) {
     val isUser = msg.isUser
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier            = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         Surface(
             shape = RoundedCornerShape(
-                topStart = if (isUser) 16.dp else 4.dp,
-                topEnd = if (isUser) 4.dp else 16.dp,
+                topStart    = if (isUser) 16.dp else 4.dp,
+                topEnd      = if (isUser) 4.dp else 16.dp,
                 bottomStart = 16.dp,
-                bottomEnd = 16.dp
+                bottomEnd   = 16.dp
             ),
-            color = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+            color    = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
             Text(
-                text = msg.text,
+                text     = msg.text,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
+                color    = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                style    = MaterialTheme.typography.bodyMedium
             )
         }
     }

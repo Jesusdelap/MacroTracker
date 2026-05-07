@@ -35,6 +35,10 @@ class RecipeViewModel(
         viewModelScope.launch { recipeRepository.insert(recipe) }
     }
 
+    fun updateRecipe(recipe: RecipeEntity) {
+        viewModelScope.launch { recipeRepository.update(recipe) }
+    }
+
     fun deleteRecipe(recipe: RecipeEntity) {
         viewModelScope.launch { recipeRepository.delete(recipe) }
     }
@@ -44,13 +48,31 @@ class RecipeViewModel(
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             foodRepository.insert(
                 FoodEntryEntity(
-                    date = today,
-                    name = recipe.name,
-                    kcal = recipe.kcalPerServing,
-                    protein = recipe.protein,
-                    carbs = recipe.carbs,
-                    fat = recipe.fat,
+                    date        = today,
+                    name        = recipe.name,
+                    kcal        = recipe.kcalPerServing,
+                    protein     = recipe.protein,
+                    carbs       = recipe.carbs,
+                    fat         = recipe.fat,
                     description = "Receta: ${recipe.name}"
+                )
+            )
+        }
+    }
+
+    fun addToTodayWithGrams(recipe: RecipeEntity, grams: Float) {
+        viewModelScope.launch {
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val ratio = grams / 100f
+            foodRepository.insert(
+                FoodEntryEntity(
+                    date        = today,
+                    name        = recipe.name,
+                    kcal        = (recipe.kcalPerServing * ratio).toInt(),
+                    protein     = recipe.protein * ratio,
+                    carbs       = recipe.carbs * ratio,
+                    fat         = recipe.fat * ratio,
+                    description = "Receta: ${recipe.name} (${grams.toInt()}g)"
                 )
             )
         }

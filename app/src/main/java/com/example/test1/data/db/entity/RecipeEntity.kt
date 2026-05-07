@@ -13,5 +13,6 @@ data class RecipeEntity(
     val carbs: Float,
     val fat: Float,
     val ingredients: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val isPer100g: Boolean = false
 )
