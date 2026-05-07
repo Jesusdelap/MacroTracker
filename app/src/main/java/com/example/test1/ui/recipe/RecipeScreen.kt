@@ -4,7 +4,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -20,10 +22,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -198,28 +206,32 @@ private fun EmptyState(hasSearch: Boolean, query: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(32.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+            modifier = Modifier.padding(Spacing.xxxl)
         ) {
             Icon(
-                if (hasSearch) Icons.Filled.SearchOff else Icons.Filled.Book,
+                imageVector        = if (hasSearch) Icons.Filled.SearchOff else Icons.Filled.Book,
                 contentDescription = null,
-                modifier = Modifier.size(56.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                modifier           = Modifier.size(48.dp),
+                tint               = TextTertiary.copy(alpha = 0.4f)
             )
-            Text(
-                if (hasSearch) "Sin resultados para \"$query\""
-                else "Aún no tienes recetas guardadas",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
-            )
-            if (!hasSearch) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
                 Text(
-                    "Pulsa el botón para crear tu primera receta",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    text  = if (hasSearch) "Sin resultados para \"$query\""
+                            else "Aún no tienes recetas guardadas",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (!hasSearch) {
+                    Text(
+                        text  = "Crea tu primera receta pulsando el botón",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextTertiary
+                    )
+                }
             }
         }
     }
@@ -232,96 +244,136 @@ private fun RecipeCard(recipe: RecipeEntity, onAddToToday: () -> Unit, onDelete:
     val dateStr = remember(recipe.createdAt) {
         SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(recipe.createdAt))
     }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            // Colored accent strip
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) showDeleteConfirm = true
+            false
+        },
+        positionalThreshold = { it * 0.38f }
+    )
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("¿Eliminar receta?") },
+            text  = { Text("Se eliminará \"${recipe.name}\" del recetario.") },
+            confirmButton = {
+                TextButton(
+                    onClick = { showDeleteConfirm = false; onDelete() },
+                    colors  = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Eliminar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    SwipeToDismissBox(
+        state                       = dismissState,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            val fraction = dismissState.progress
+            val visible  = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
+                    .fillMaxSize()
+                    .clip(MaterialTheme.shapes.large)
                     .background(
-                        Brush.verticalGradient(listOf(ProteinColor, CarbColor)),
-                        RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)
+                        MaterialTheme.colorScheme.errorContainer.copy(
+                            alpha = if (visible) (fraction * 2f).coerceIn(0f, 1f) else 0f
+                        )
                     )
-            )
-            Column(modifier = Modifier.padding(start = 12.dp, end = 14.dp, top = 14.dp, bottom = 12.dp)) {
+                    .padding(end = Spacing.lg),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    imageVector        = Icons.Filled.Delete,
+                    contentDescription = "Eliminar",
+                    tint               = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier           = Modifier.size(20.dp)
+                )
+            }
+        }
+    ) {
+        ElevatedCard(
+            modifier  = Modifier.fillMaxWidth(),
+            shape     = MaterialTheme.shapes.large,
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                // Header: nombre + botón añadir
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment     = Alignment.Top
                 ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Column(modifier = Modifier.weight(1f).padding(end = Spacing.sm)) {
                         Text(
-                            recipe.name,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
+                            text     = recipe.name,
+                            style    = MaterialTheme.typography.headlineMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color    = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(Modifier.height(2.dp))
+                        Spacer(Modifier.height(Spacing.xs))
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                         ) {
                             Icon(
                                 Icons.Filled.LocalFireDepartment,
                                 contentDescription = null,
                                 modifier = Modifier.size(13.dp),
-                                tint = CalorieColor
+                                tint     = MaterialTheme.macroColors.calories
                             )
                             Text(
-                                "${recipe.kcalPerServing} kcal",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = CalorieColor
+                                text  = "${recipe.kcalPerServing} kcal",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.macroColors.calories
                             )
                             Text(
-                                "·  ${recipe.servings.toInt()} ración(es)  ·  $dateStr",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text  = "· ${recipe.servings.toInt()} rac. · $dateStr",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextTertiary
                             )
                         }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        FilledTonalButton(
-                            onClick = onAddToToday,
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Añadir", fontSize = 12.sp)
-                        }
-                        IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = "Eliminar",
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                    FilledTonalButton(
+                        onClick        = onAddToToday,
+                        contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
+                        modifier       = Modifier.height(36.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(Spacing.xs))
+                        Text("Añadir", style = MaterialTheme.typography.labelLarge)
                     }
                 }
 
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    MacroPill(MacroType.PROTEIN, "${recipe.protein}g")
-                    MacroPill(MacroType.CARBS,   "${recipe.carbs}g")
-                    MacroPill(MacroType.FAT,     "${recipe.fat}g")
+                Spacer(Modifier.height(Spacing.md))
+
+                // MacroPills: proteína · carbs · grasas
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    MacroPill(MacroType.PROTEIN, "${recipe.protein.toInt()}g")
+                    MacroPill(MacroType.CARBS,   "${recipe.carbs.toInt()}g")
+                    MacroPill(MacroType.FAT,     "${recipe.fat.toInt()}g")
                 }
 
                 if (recipe.ingredients.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Spacing.sm))
                     Text(
-                        recipe.ingredients,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text     = recipe.ingredients,
+                        style    = MaterialTheme.typography.bodySmall,
+                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -393,141 +445,265 @@ internal fun RecipeCreationDialog(
     }
 }
 
-// ─── Manual tab ────────────────────────────────────────────────────────────────
+// ─── Form helpers ──────────────────────────────────────────────────────────────
 
 private enum class InputMode { PorRacion, Por100g }
 
 @Composable
+private fun FormSectionHeader(title: String) {
+    Text(title, style = MaterialTheme.typography.labelMedium, color = TextTertiary)
+}
+
+@Composable
+private fun RecipeTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    required: Boolean = false,
+    singleLine: Boolean = false,
+    minLines: Int = 1,
+    maxLines: Int = 5
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = {
+            Row {
+                Text(placeholder, style = MaterialTheme.typography.bodyMedium, color = TextTertiary)
+                if (required) Text(" *", style = MaterialTheme.typography.bodyMedium,
+                    color = SemanticError.copy(alpha = 0.8f))
+            }
+        },
+        textStyle = MaterialTheme.typography.bodyMedium,
+        singleLine = singleLine,
+        minLines = minLines,
+        maxLines = maxLines,
+        shape = AppShapeMd,
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedBorderColor       = Color.Transparent,
+            focusedBorderColor         = MaterialTheme.colorScheme.primary,
+            unfocusedContainerColor    = MaterialTheme.colorScheme.surfaceVariant,
+            focusedContainerColor      = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedTextColor         = MaterialTheme.colorScheme.onSurface,
+            focusedTextColor           = MaterialTheme.colorScheme.onSurface
+        )
+    )
+}
+
+@Composable
+private fun MacroInputRow(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    unit: String = "",
+    required: Boolean = false
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val primary      = MaterialTheme.colorScheme.primary
+    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
+    val onSurface    = MaterialTheme.colorScheme.onSurface
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .background(surfaceColor, AppShapeMd)
+            .border(1.dp, if (isFocused) primary else Color.Transparent, AppShapeMd)
+            .padding(horizontal = Spacing.lg),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(label, style = MaterialTheme.typography.bodyMedium, color = onSurface)
+                if (required) Text("*", style = MaterialTheme.typography.labelMedium, color = SemanticError)
+            }
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        color = onSurface,
+                        textAlign = TextAlign.End,
+                        fontFeatureSettings = FontFeatureTnum
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    cursorBrush = SolidColor(primary),
+                    modifier = Modifier
+                        .widthIn(min = 48.dp, max = 100.dp)
+                        .onFocusChanged { isFocused = it.isFocused },
+                    decorationBox = { innerTextField ->
+                        Box(contentAlignment = Alignment.CenterEnd) {
+                            if (value.isEmpty()) {
+                                Text("—",
+                                    style = MaterialTheme.typography.bodyMedium.copy(textAlign = TextAlign.End),
+                                    color = TextTertiary
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
+                if (unit.isNotBlank()) {
+                    Text(unit, style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+                }
+            }
+        }
+    }
+}
+
+// ─── Manual tab ────────────────────────────────────────────────────────────────
+
+@Composable
 private fun ManualTab(initialValues: MacroResult? = null, onSave: (RecipeEntity) -> Unit) {
+    val haptics   = LocalHapticFeedback.current
     var inputMode by remember { mutableStateOf(InputMode.PorRacion) }
-    var name by remember { mutableStateOf(initialValues?.name ?: "") }
-    var notes by remember { mutableStateOf("") }
-
+    var name     by remember { mutableStateOf(initialValues?.name ?: "") }
+    var notes    by remember { mutableStateOf("") }
     var servings by remember { mutableStateOf("1") }
-    var kcal by remember { mutableStateOf(initialValues?.cal?.toString() ?: "") }
-    var protein by remember { mutableStateOf(initialValues?.prot?.toString() ?: "") }
-    var carbs by remember { mutableStateOf(initialValues?.carb?.toString() ?: "") }
-    var fat by remember { mutableStateOf(initialValues?.fat?.toString() ?: "") }
-
-    var grams by remember { mutableStateOf("") }
-    var kcal100 by remember { mutableStateOf("") }
-    var prot100 by remember { mutableStateOf("") }
+    var kcal     by remember { mutableStateOf(initialValues?.cal?.toString() ?: "") }
+    var protein  by remember { mutableStateOf(initialValues?.prot?.toString() ?: "") }
+    var carbs    by remember { mutableStateOf(initialValues?.carb?.toString() ?: "") }
+    var fat      by remember { mutableStateOf(initialValues?.fat?.toString() ?: "") }
+    var grams    by remember { mutableStateOf("") }
+    var kcal100  by remember { mutableStateOf("") }
+    var prot100  by remember { mutableStateOf("") }
     var carbs100 by remember { mutableStateOf("") }
-    var fat100 by remember { mutableStateOf("") }
-
-    val numOpts = KeyboardOptions(keyboardType = KeyboardType.Number)
+    var fat100   by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = 20.dp, vertical = Spacing.xxl)
     ) {
-        OutlinedTextField(
+        // ── INFORMACIÓN BÁSICA ────────────────────────────────────────────────
+        FormSectionHeader("INFORMACIÓN BÁSICA")
+        Spacer(Modifier.height(Spacing.lg))
+        RecipeTextField(
             value = name, onValueChange = { name = it },
-            label = { Text("Nombre *") }, singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            leadingIcon = { Icon(Icons.Filled.Restaurant, contentDescription = null) }
+            placeholder = "Nombre de la receta", required = true, singleLine = true
+        )
+        Spacer(Modifier.height(Spacing.lg))
+        RecipeTextField(
+            value = notes, onValueChange = { notes = it },
+            placeholder = "Notas / ingredientes (opcional)", minLines = 3
         )
 
+        Spacer(Modifier.height(Spacing.xxl))
+
+        // ── PORCIONES ─────────────────────────────────────────────────────────
+        FormSectionHeader("PORCIONES")
+        Spacer(Modifier.height(Spacing.lg))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             SegmentedButton(
                 selected = inputMode == InputMode.PorRacion,
-                onClick = { inputMode = InputMode.PorRacion },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-            ) { Text("Por ración / unidad") }
+                onClick  = { inputMode = InputMode.PorRacion },
+                shape    = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+            ) { Text("Por ración") }
             SegmentedButton(
                 selected = inputMode == InputMode.Por100g,
-                onClick = { inputMode = InputMode.Por100g },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                onClick  = { inputMode = InputMode.Por100g },
+                shape    = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
             ) { Text("Por 100g") }
         }
-
+        Spacer(Modifier.height(Spacing.lg))
         if (inputMode == InputMode.PorRacion) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = servings, onValueChange = { servings = it }, label = { Text("Raciones") }, singleLine = true, keyboardOptions = numOpts, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(value = kcal, onValueChange = { kcal = it }, label = { Text("kcal *") }, singleLine = true, keyboardOptions = numOpts, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = protein, onValueChange = { protein = it }, label = { Text("Prot (g) *") }, singleLine = true, keyboardOptions = numOpts, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(value = carbs, onValueChange = { carbs = it }, label = { Text("Carb (g) *") }, singleLine = true, keyboardOptions = numOpts, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(value = fat, onValueChange = { fat = it }, label = { Text("Grasa (g) *") }, singleLine = true, keyboardOptions = numOpts, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-            }
+            MacroInputRow("Raciones", servings, { servings = it })
         } else {
-            OutlinedTextField(
-                value = grams, onValueChange = { grams = it },
-                label = { Text("Gramos a consumir *") }, singleLine = true,
-                keyboardOptions = numOpts, modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
-            Text("Macros por 100g:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = kcal100, onValueChange = { kcal100 = it }, label = { Text("kcal *") }, singleLine = true, keyboardOptions = numOpts, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(value = prot100, onValueChange = { prot100 = it }, label = { Text("Prot (g) *") }, singleLine = true, keyboardOptions = numOpts, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
+            MacroInputRow("Gramos a consumir", grams, { grams = it }, required = true)
+        }
+
+        Spacer(Modifier.height(Spacing.xxl))
+
+        // ── VALORES NUTRICIONALES ─────────────────────────────────────────────
+        FormSectionHeader(
+            if (inputMode == InputMode.PorRacion) "VALORES NUTRICIONALES" else "MACROS POR 100G"
+        )
+        Spacer(Modifier.height(Spacing.lg))
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            if (inputMode == InputMode.PorRacion) {
+                MacroInputRow("Calorías",      kcal,    { kcal = it },    "kcal", required = true)
+                MacroInputRow("Proteína",      protein, { protein = it }, "g",    required = true)
+                MacroInputRow("Carbohidratos", carbs,   { carbs = it },   "g",    required = true)
+                MacroInputRow("Grasas",        fat,     { fat = it },     "g",    required = true)
+            } else {
+                MacroInputRow("Calorías",      kcal100,  { kcal100 = it },  "kcal", required = true)
+                MacroInputRow("Proteína",      prot100,  { prot100 = it },  "g",    required = true)
+                MacroInputRow("Carbohidratos", carbs100, { carbs100 = it }, "g",    required = true)
+                MacroInputRow("Grasas",        fat100,   { fat100 = it },   "g",    required = true)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = carbs100, onValueChange = { carbs100 = it }, label = { Text("Carb (g) *") }, singleLine = true, keyboardOptions = numOpts, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(value = fat100, onValueChange = { fat100 = it }, label = { Text("Grasa (g) *") }, singleLine = true, keyboardOptions = numOpts, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-            }
-            val gramsF = grams.toFloatOrNull()
-            val k = kcal100.toIntOrNull()
-            val p = prot100.toFloatOrNull()
-            val c = carbs100.toFloatOrNull()
-            val f = fat100.toFloatOrNull()
-            if (gramsF != null && k != null && p != null && c != null && f != null) {
-                val r = gramsF / 100f
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Total para ${grams}g:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            MacroPill(MacroType.CALORIES, "${(k * r).toInt()}")
-                            MacroPill(MacroType.PROTEIN,  "${"%.1f".format(p * r)}g")
-                            MacroPill(MacroType.CARBS,    "${"%.1f".format(c * r)}g")
-                            MacroPill(MacroType.FAT,      "${"%.1f".format(f * r)}g")
-                        }
+        }
+
+        // Vista previa del cálculo (solo modo 100g con todos los campos rellenos)
+        val gramsF = grams.toFloatOrNull()
+        val k100   = kcal100.toIntOrNull()
+        val p100   = prot100.toFloatOrNull()
+        val c100   = carbs100.toFloatOrNull()
+        val f100   = fat100.toFloatOrNull()
+        if (inputMode == InputMode.Por100g &&
+            gramsF != null && k100 != null && p100 != null && c100 != null && f100 != null) {
+            val r = gramsF / 100f
+            Spacer(Modifier.height(Spacing.lg))
+            Surface(shape = AppShapeMd, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)) {
+                Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text("Total para ${grams}g:", style = MaterialTheme.typography.labelMedium, color = TextTertiary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        MacroPill(MacroType.CALORIES, "${(k100 * r).toInt()}")
+                        MacroPill(MacroType.PROTEIN,  "${"%.1f".format(p100 * r)}g")
+                        MacroPill(MacroType.CARBS,    "${"%.1f".format(c100 * r)}g")
+                        MacroPill(MacroType.FAT,      "${"%.1f".format(f100 * r)}g")
                     }
                 }
             }
         }
 
-        OutlinedTextField(
-            value = notes, onValueChange = { notes = it },
-            label = { Text("Notas / Ingredientes") },
-            maxLines = 4, modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) }
-        )
+        Spacer(Modifier.height(Spacing.xxl))
 
+        // ── GUARDAR ───────────────────────────────────────────────────────────
         Button(
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            onClick = {
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            onClick  = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 if (name.isBlank()) return@Button
                 if (inputMode == InputMode.PorRacion) {
                     val k = kcal.toIntOrNull() ?: return@Button
                     val p = protein.toFloatOrNull() ?: return@Button
                     val c = carbs.toFloatOrNull() ?: return@Button
                     val f = fat.toFloatOrNull() ?: return@Button
-                    onSave(RecipeEntity(name = name.trim(), servings = servings.toFloatOrNull() ?: 1f, kcalPerServing = k, protein = p, carbs = c, fat = f, ingredients = notes.trim()))
+                    onSave(RecipeEntity(
+                        name = name.trim(), servings = servings.toFloatOrNull() ?: 1f,
+                        kcalPerServing = k, protein = p, carbs = c, fat = f,
+                        ingredients = notes.trim()
+                    ))
                 } else {
-                    val gramsF = grams.toFloatOrNull() ?: return@Button
+                    val g = grams.toFloatOrNull() ?: return@Button
                     val k = kcal100.toIntOrNull() ?: return@Button
                     val p = prot100.toFloatOrNull() ?: return@Button
                     val c = carbs100.toFloatOrNull() ?: return@Button
                     val f = fat100.toFloatOrNull() ?: return@Button
-                    val r = gramsF / 100f
-                    onSave(RecipeEntity(name = name.trim(), servings = 1f, kcalPerServing = (k * r).toInt(), protein = p * r, carbs = c * r, fat = f * r, ingredients = notes.trim()))
+                    val r = g / 100f
+                    onSave(RecipeEntity(
+                        name = name.trim(), servings = 1f,
+                        kcalPerServing = (k * r).toInt(), protein = p * r,
+                        carbs = c * r, fat = f * r, ingredients = notes.trim()
+                    ))
                 }
             },
-            shape = RoundedCornerShape(12.dp)
+            shape = AppShapeMd
         ) {
-            Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Guardar receta", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text("Guardar receta", style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -536,6 +712,7 @@ private fun ManualTab(initialValues: MacroResult? = null, onSave: (RecipeEntity)
 
 @Composable
 private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) {
+    val haptics  = LocalHapticFeedback.current
     val greeting = "¡Hola! Cuéntame la receta que quieres crear: nombre e ingredientes con sus cantidades."
     var messages by remember { mutableStateOf(listOf(AiMsg(greeting, isUser = false, isInitial = true))) }
     var inputText by remember { mutableStateOf("") }
@@ -647,6 +824,7 @@ private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) 
                         Button(
                             modifier = Modifier.fillMaxWidth().height(46.dp),
                             onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 val finalName = aiName.trim().ifBlank { recipe.name }
                                 onSave(RecipeEntity(name = finalName, servings = 1f, kcalPerServing = recipe.cal, protein = recipe.prot, carbs = recipe.carb, fat = recipe.fat, ingredients = aiNotes.trim()))
                             },

@@ -1,8 +1,11 @@
 package com.example.test1.ui.summary
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,9 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.test1.MacroApp
 import com.example.test1.data.db.entity.FoodEntryEntity
@@ -39,6 +41,8 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
     }
     val summary by vm.summary.collectAsState()
     val selectedDate by vm.selectedDate.collectAsState()
+    var contentVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { contentVisible = true }
 
     Scaffold(
         topBar = {
@@ -80,7 +84,7 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(horizontal = 20.dp, top = Spacing.xl, bottom = Spacing.xl),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = Spacing.xl, bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.xxl)
         ) {
             item {
@@ -93,21 +97,31 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
             }
 
             item {
-                CaloriesSummaryCard(
-                    totalKcal = summary.totalKcal,
-                    goalKcal  = summary.goal.kcal
-                )
+                AnimatedVisibility(
+                    visible = contentVisible,
+                    enter   = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 4 }
+                ) {
+                    CaloriesSummaryCard(
+                        totalKcal = summary.totalKcal,
+                        goalKcal  = summary.goal.kcal
+                    )
+                }
             }
 
             item {
-                MacronutrientsCard(
-                    totalProtein = summary.totalProtein,
-                    goalProtein  = summary.goal.protein.toFloat(),
-                    totalCarbs   = summary.totalCarbs,
-                    goalCarbs    = summary.goal.carbs.toFloat(),
-                    totalFat     = summary.totalFat,
-                    goalFat      = summary.goal.fat.toFloat()
-                )
+                AnimatedVisibility(
+                    visible = contentVisible,
+                    enter   = fadeIn(tween(300, delayMillis = 60)) + slideInVertically(tween(300, delayMillis = 60)) { it / 4 }
+                ) {
+                    MacronutrientsCard(
+                        totalProtein = summary.totalProtein,
+                        goalProtein  = summary.goal.protein.toFloat(),
+                        totalCarbs   = summary.totalCarbs,
+                        goalCarbs    = summary.goal.carbs.toFloat(),
+                        totalFat     = summary.totalFat,
+                        goalFat      = summary.goal.fat.toFloat()
+                    )
+                }
             }
 
             item {
@@ -242,16 +256,16 @@ private fun MacronutrientsCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape    = MaterialTheme.shapes.small
+        shape    = MaterialTheme.shapes.large           // AppShapeLg = 16dp
     ) {
         Column(
-            modifier = Modifier.padding(Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+            modifier = Modifier.padding(Spacing.xl),   // 24dp
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
                 text  = "MACRONUTRIENTES",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = TextTertiary
             )
             MacroProgressRow(MacroType.PROTEIN, totalProtein, goalProtein)
             MacroProgressRow(MacroType.CARBS,   totalCarbs,   goalCarbs)
@@ -357,35 +371,56 @@ private fun FoodEntryRow(entry: FoodEntryEntity, onDelete: () -> Unit) {
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape    = MaterialTheme.shapes.small
+            shape    = MaterialTheme.shapes.large   // AppShapeLg = 16dp
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Spacing.md, vertical = Spacing.sm + 2.dp)
+                    .padding(20.dp)
             ) {
-                Row(
-                    verticalAlignment     = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                ) {
+                // Línea 1: hora + nombre alineados por baseline
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text     = timeStr,
-                        fontSize = 11.sp,
-                        color    = MaterialTheme.colorScheme.onSurfaceVariant
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = TextTertiary,
+                        modifier = Modifier.alignByBaseline()
                     )
                     Text(
-                        text       = entry.name,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize   = 14.sp,
-                        color      = MaterialTheme.colorScheme.onSurface
+                        text     = entry.name,
+                        style    = MaterialTheme.typography.headlineMedium,
+                        color    = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .alignByBaseline()
                     )
                 }
                 Spacer(Modifier.height(Spacing.sm))
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    MacroPill(MacroType.CALORIES, "${entry.kcal}",              modifier = Modifier.weight(1f))
-                    MacroPill(MacroType.PROTEIN,  "${entry.protein.toInt()}g",  modifier = Modifier.weight(1f))
-                    MacroPill(MacroType.CARBS,    "${entry.carbs.toInt()}g",    modifier = Modifier.weight(1f))
-                    MacroPill(MacroType.FAT,      "${entry.fat.toInt()}g",      modifier = Modifier.weight(1f))
+                // Línea 2: kcal destacadas
+                Row {
+                    Text(
+                        text     = "${entry.kcal}",
+                        style    = MaterialTheme.typography.titleMedium.copy(
+                            fontFeatureSettings = FontFeatureTnum
+                        ),
+                        color    = MaterialTheme.macroColors.calories,
+                        modifier = Modifier.alignByBaseline()
+                    )
+                    Text(
+                        text     = " kcal",
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = TextTertiary,
+                        modifier = Modifier.alignByBaseline()
+                    )
+                }
+                Spacer(Modifier.height(Spacing.sm))
+                // Línea 3: proteína · carbs · grasas
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    MacroPill(MacroType.PROTEIN, "${entry.protein.toInt()}g")
+                    MacroPill(MacroType.CARBS,   "${entry.carbs.toInt()}g")
+                    MacroPill(MacroType.FAT,      "${entry.fat.toInt()}g")
                 }
             }
         }
@@ -395,30 +430,44 @@ private fun FoodEntryRow(entry: FoodEntryEntity, onDelete: () -> Unit) {
 // ── Estado vacío ──────────────────────────────────────────────────────────────
 
 @Composable
-private fun FoodEntryEmptyState() {
+private fun FoodEntryEmptyState(onNavigateToChat: (() -> Unit)? = null) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = Spacing.xxl),
+            .padding(vertical = Spacing.xxxl),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
         Icon(
             imageVector        = Icons.Filled.RestaurantMenu,
             contentDescription = null,
             modifier           = Modifier.size(48.dp),
-            tint               = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+            tint               = TextTertiary.copy(alpha = 0.4f)
         )
-        Text(
-            text  = "Sin comidas registradas",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text  = "Ve a Registro para añadir comidas",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            Text(
+                text  = "Sin comidas registradas hoy",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text  = "Empieza añadiendo tu primera comida desde Registro",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextTertiary
+            )
+        }
+        if (onNavigateToChat != null) {
+            TextButton(onClick = onNavigateToChat) {
+                Text(
+                    text  = "Ir a Registro →",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
     }
 }
 
