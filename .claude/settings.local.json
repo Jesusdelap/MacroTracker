@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($items = Get-ChildItem -Path \"E:\\\\AndroidPrograms\" -Force; if \\($items.Count -eq 0\\) { \"Directory is empty or contains only hidden items\" } else { $items | ForEach-Object { \"$\\($_.FullName\\) - $\\($_.Attributes\\)\" } })",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\" -Force | Select-Object Name, @{Name='Type';Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}})",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\" -Force -Recurse -Depth 1 | Select-Object FullName, @{Name='Type';Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}})",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\" -Force | Select-Object Name, @{Name='Type';Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}})",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\" -Force -Recurse | Where-Object { $_.PSIsContainer -eq $false } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\" -Force | Where-Object { -not $_.PSIsContainer } | Select-Object Name, FullName)",
+      "PowerShell(ls *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\" -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName)",
+      "PowerShell(cmd /c \"dir E:\\\\AndroidPrograms\\\\app\\\\src /s /b\")",
+      "PowerShell(adb shell *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(cd E:\\\\AndroidPrograms; .\\\\gradlew.bat :app:compileDebugKotlin 2>&1 | Where-Object { $_ -match \"w:|e:|RecipeScreen\" } | Select-Object -First 40)",
+      "PowerShell(cd E:\\\\AndroidPrograms; .\\\\gradlew.bat :app:compileDebugKotlin 2>&1 | Where-Object { $_ -match \"^e:|BUILD\" } | Select-Object -First 20)",
+      "PowerShell(cd E:\\\\AndroidPrograms; .\\\\gradlew.bat :app:compileDebugKotlin 2>&1 | Where-Object { $_ -match \"^e:|BUILD\" } | Select-Object -First 15)",
+      "PowerShell(cd E:\\\\AndroidPrograms; .\\\\gradlew.bat :app:compileDebugKotlin 2>&1 | Where-Object { $_ -match \"^e:|BUILD|error:\" } | Select-Object -First 30)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(& \"C:\\\\Android\\\\platform-tools\\\\adb.exe\" devices)",
+      "PowerShell($adb = \"C:\\\\Android\\\\platform-tools\\\\adb.exe\"; & $adb logcat -c; & $adb shell am force-stop com.example.test1; & $adb shell pm clear com.example.test1; Start-Sleep -Seconds 2; & $adb shell am start -n com.example.test1/.MainActivity; Start-Sleep -Seconds 7; & $adb logcat -d -s AndroidRuntime,FATAL 2>&1 | Select-Object -Last 60)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\test1\\\\ui\\\\components\" -Recurse | Where-Object { $_.Extension -eq \".kt\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\test1\\\\ui\\\\chat\" -Recurse | Where-Object { $_.Extension -eq \".kt\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\test1\\\\ui\\\\recipe\" -Recurse | Where-Object { $_.Extension -eq \".kt\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\test1\\\\ui\\\\summary\" -Recurse | Where-Object { $_.Extension -eq \".kt\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\test1\\\\ui\\\\settings\" -Recurse | Where-Object { $_.Extension -eq \".kt\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\test1\\\\ui\\\\splash\" -Recurse | Where-Object { $_.Extension -eq \".kt\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\test1\\\\ui\\\\theme\" -Recurse | Where-Object { $_.Extension -eq \".kt\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\test1\\\\ui\\\\navigation\" -Recurse | Where-Object { $_.Extension -eq \".kt\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\AndroidPrograms\\\\app\\\\src\\\\main\\\\res\" -Recurse | Select-Object FullName | ForEach-Object { $_.FullName })",
+      "PowerShell(cd E:\\\\AndroidPrograms; $env:Path = $env:Path + \";C:\\\\Program Files\\\\Git\\\\cmd;C:\\\\Program Files\\\\Git\\\\bin\"; git --version)"
+    ]
+  }
+}
