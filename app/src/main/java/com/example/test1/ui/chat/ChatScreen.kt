@@ -32,14 +32,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,19 +64,19 @@ private val CHAT_GREETINGS = listOf(
 )
 
 private fun formatChatDate(dateStr: String): String {
-    val date = java.time.LocalDate.parse(dateStr)
-    val today = java.time.LocalDate.now()
+    val date    = java.time.LocalDate.parse(dateStr)
+    val today   = java.time.LocalDate.now()
     val dayName = date.dayOfWeek
         .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale("es"))
         .replaceFirstChar { it.uppercase() }
-    val day = date.dayOfMonth
+    val day   = date.dayOfMonth
     val month = date.month
         .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale("es"))
     return when {
-        date == today -> "Hoy · $dayName $day de $month"
+        date == today              -> "Hoy · $dayName $day de $month"
         date == today.minusDays(1) -> "Ayer · $dayName $day de $month"
-        date == today.plusDays(1) -> "Mañana · $dayName $day de $month"
-        else -> "$dayName $day de $month"
+        date == today.plusDays(1)  -> "Mañana · $dayName $day de $month"
+        else                       -> "$dayName $day de $month"
     }
 }
 
@@ -90,7 +91,7 @@ private data class EditIngredient(
 
 @Composable
 fun ChatScreen(onNavigateToSettings: () -> Unit) {
-    val app = LocalContext.current.applicationContext as MacroApp
+    val app      = LocalContext.current.applicationContext as MacroApp
     val vm: ChatViewModel = viewModel {
         ChatViewModel(
             app.foodRepository,
@@ -101,21 +102,22 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
             BuildConfig.MAX_CHAT_DAYS
         )
     }
-    val uiState by vm.uiState.collectAsState()
+    val uiState      by vm.uiState.collectAsState()
     val selectedDate by app.selectedDate.collectAsState()
-    val greeting = remember { CHAT_GREETINGS.random() }
-    val today = remember { java.time.LocalDate.now().toString() }
-    val isPastDay = selectedDate < today
-    val listState = rememberLazyListState()
-    val keyboard = LocalSoftwareKeyboardController.current
-    val context = LocalContext.current
+    val greeting     = remember { CHAT_GREETINGS.random() }
+    val today        = remember { java.time.LocalDate.now().toString() }
+    val isPastDay    = selectedDate < today
+    val listState    = rememberLazyListState()
+    val keyboard     = LocalSoftwareKeyboardController.current
+    val context      = LocalContext.current
+    val haptics      = LocalHapticFeedback.current
 
     LaunchedEffect(uiState.messages.size) {
         if (uiState.messages.isNotEmpty()) listState.animateScrollToItem(uiState.messages.size - 1)
     }
 
     // ── Camera / gallery launchers ──────────────────────────────────────────
-    var tempPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var tempPhotoUri   by remember { mutableStateOf<android.net.Uri?>(null) }
     var showSourceMenu by remember { mutableStateOf(false) }
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
@@ -155,8 +157,8 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
     uiState.debugInfo?.let { info ->
         AlertDialog(
             onDismissRequest = vm::clearDebugInfo,
-            title = { Text("Debug — respuesta Gemini") },
-            text = { Text(info, fontFamily = FontFamily.Monospace, fontSize = 11.sp, softWrap = true) },
+            title   = { Text("Debug — respuesta Gemini") },
+            text    = { Text(info, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) },
             confirmButton = { TextButton(onClick = vm::clearDebugInfo) { Text("Cerrar") } }
         )
     }
@@ -175,18 +177,18 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
-                        .padding(start = 16.dp, end = 4.dp),
+                        .padding(start = Spacing.lg, end = Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         "Registro",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        style    = MaterialTheme.typography.titleMedium,
+                        color    = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.weight(1f)
                     )
                 }
                 HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
+                    color     = MaterialTheme.colorScheme.outlineVariant,
                     thickness = 0.5.dp
                 )
             }
@@ -194,25 +196,26 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                state               = listState,
+                modifier            = Modifier.weight(1f).padding(horizontal = Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                contentPadding      = PaddingValues(vertical = Spacing.sm)
             ) {
                 item(key = "greeting") {
                     GreetingCard(
                         dateLabel = formatChatDate(selectedDate),
-                        greeting = greeting
+                        greeting  = greeting
                     )
                 }
                 items(uiState.messages, key = { it.id }) { msg ->
                     ChatBubble(
-                        msg = msg,
+                        msg            = msg,
                         actionsEnabled = actionsEnabled,
+                        haptics        = haptics,
                         onSaveAsRecipe = { recipe -> vm.saveAsRecipe(recipe) },
-                        onDiscard = { vm.discardEntry(msg.foodEntryId!!, msg.id) },
+                        onDiscard      = { vm.discardEntry(msg.foodEntryId!!, msg.id) },
                         onEditManually = { newMacro -> vm.updateEntryManually(msg.foodEntryId!!, msg.id, newMacro) },
-                        onStartAIEdit = { vm.startAIEdit(msg.foodEntryId!!, msg.id, msg.macroResult!!) }
+                        onStartAIEdit  = { vm.startAIEdit(msg.foodEntryId!!, msg.id, msg.macroResult!!) }
                     )
                 }
                 if (uiState.isLoading) {
@@ -223,40 +226,40 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
             // ── AI edit mode banner ─────────────────────────────────────────
             uiState.editingEntry?.let { editing ->
                 Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    color    = MaterialTheme.colorScheme.secondaryContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        modifier          = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             Icons.Filled.Edit,
                             contentDescription = null,
-                            modifier = Modifier.size(15.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            modifier           = Modifier.size(15.dp),
+                            tint               = MaterialTheme.colorScheme.onSecondaryContainer
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(Spacing.sm))
                         Text(
                             "Corrigiendo: ${editing.originalMacro.name}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            style    = MaterialTheme.typography.bodySmall,
+                            color    = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.weight(1f)
                         )
                         TextButton(
-                            onClick = vm::cancelAIEdit,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            onClick        = vm::cancelAIEdit,
+                            contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = 0.dp)
                         ) {
                             Icon(
                                 Icons.Filled.Close,
                                 contentDescription = "Cancelar",
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                modifier           = Modifier.size(14.dp),
+                                tint               = MaterialTheme.colorScheme.onSecondaryContainer
                             )
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(Spacing.xs))
                             Text(
                                 "Cancelar",
-                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
@@ -267,32 +270,32 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
             // ── Input bar ───────────────────────────────────────────────────
             Column {
                 HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline,
+                    color     = MaterialTheme.colorScheme.outline,
                     thickness = 0.5.dp
                 )
                 if (isPastDay) {
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color    = MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            modifier = Modifier
+                            modifier              = Modifier
                                 .fillMaxWidth()
                                 .navigationBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                             horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment     = Alignment.CenterVertically
                         ) {
                             Icon(
                                 Icons.Filled.History,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier           = Modifier.size(16.dp),
+                                tint               = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(Spacing.sm))
                             Text(
                                 "Historial — solo lectura",
-                                fontSize = 13.sp,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -300,9 +303,9 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                 } else {
                     Surface(color = MaterialTheme.colorScheme.background) {
                         Row(
-                            modifier = Modifier
+                            modifier          = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box {
@@ -313,15 +316,15 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                                     Icon(Icons.Filled.PhotoCamera, contentDescription = "Foto")
                                 }
                                 DropdownMenu(
-                                    expanded = showSourceMenu,
+                                    expanded         = showSourceMenu,
                                     onDismissRequest = { showSourceMenu = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Cámara") },
+                                        text    = { Text("Cámara") },
                                         onClick = { showSourceMenu = false; launchCamera() }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Galería") },
+                                        text    = { Text("Galería") },
                                         onClick = {
                                             showSourceMenu = false
                                             galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -331,26 +334,27 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                             }
 
                             OutlinedTextField(
-                                value = uiState.inputText,
+                                value         = uiState.inputText,
                                 onValueChange = vm::onInputChange,
-                                modifier = Modifier.weight(1f),
-                                placeholder = {
+                                modifier      = Modifier.weight(1f),
+                                placeholder   = {
                                     Text(
-                                        if (uiState.editingEntry != null) "Describe la corrección..." else "Describe tu comida...",
-                                        fontSize = 14.sp
+                                        if (uiState.editingEntry != null) "Describe la corrección…" else "Describe tu comida…",
+                                        style = MaterialTheme.typography.bodyMedium
                                     )
                                 },
-                                shape = RoundedCornerShape(6.dp),
-                                maxLines = 3,
+                                textStyle       = MaterialTheme.typography.bodyMedium,
+                                shape           = AppShapeLg,
+                                maxLines        = 3,
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                                 keyboardActions = KeyboardActions(onSend = { vm.sendMessage(); keyboard?.hide() }),
-                                enabled = !uiState.isLoading
+                                enabled         = !uiState.isLoading
                             )
 
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(Spacing.xs))
                             FilledIconButton(
-                                onClick = { vm.sendMessage(); keyboard?.hide() },
-                                enabled = uiState.inputText.isNotBlank() && !uiState.isLoading,
+                                onClick  = { vm.sendMessage(); keyboard?.hide() },
+                                enabled  = uiState.inputText.isNotBlank() && !uiState.isLoading,
                                 modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar")
@@ -368,41 +372,43 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
 private fun ChatBubble(
     msg: ChatMessage,
     actionsEnabled: Boolean,
+    haptics: HapticFeedback,
     onSaveAsRecipe: (RecipeEntity) -> Unit,
     onDiscard: () -> Unit,
     onEditManually: (MacroResult) -> Unit,
     onStartAIEdit: () -> Unit
 ) {
     var showDiscardConfirm by remember { mutableStateOf(false) }
-    var showEditSheet by remember { mutableStateOf(false) }
+    var showEditSheet      by remember { mutableStateOf(false) }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier              = Modifier.fillMaxWidth(),
         horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
     ) {
         if (msg.isUser) {
             Surface(
                 color = if (msg.isImageMessage) MaterialTheme.colorScheme.secondaryContainer
-                        else MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(14.dp, 2.dp, 14.dp, 14.dp)
+                        else                    MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(16, 4, 16, 16)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier              = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                 ) {
                     if (msg.isImageMessage) {
                         Icon(
                             Icons.Filled.PhotoCamera,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            modifier           = Modifier.size(16.dp),
+                            tint               = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                     Text(
                         msg.text,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = if (msg.isImageMessage) MaterialTheme.colorScheme.onSecondaryContainer
-                                else MaterialTheme.colorScheme.onPrimary
+                                else                    MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }
@@ -410,24 +416,23 @@ private fun ChatBubble(
             Column(modifier = Modifier.fillMaxWidth(0.88f)) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(2.dp, 14.dp, 14.dp, 14.dp)
+                    shape = RoundedCornerShape(4, 16, 16, 16)
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                        Text(msg.text)
+                    Column(modifier = Modifier.padding(horizontal = Spacing.md, vertical = 10.dp)) {
+                        Text(msg.text, style = MaterialTheme.typography.bodyMedium)
                         msg.macroResult?.let { macro ->
                             if (macro.ingredients.isNotEmpty()) {
                                 macro.ingredients.forEach { ing ->
                                     Spacer(Modifier.height(10.dp))
                                     Text(
                                         ing.name,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold,
+                                        style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Spacer(Modifier.height(4.dp))
+                                    Spacer(Modifier.height(Spacing.xs))
                                     Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.fillMaxWidth()
+                                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                        modifier              = Modifier.fillMaxWidth()
                                     ) {
                                         MacroPill(MacroType.CALORIES, "${ing.cal}",   modifier = Modifier.weight(1f))
                                         MacroPill(MacroType.PROTEIN,  "${ing.prot}g", modifier = Modifier.weight(1f))
@@ -435,26 +440,25 @@ private fun ChatBubble(
                                         MacroPill(MacroType.FAT,      "${ing.fat}g",  modifier = Modifier.weight(1f))
                                     }
                                 }
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(Spacing.sm))
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(
                                             MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                                            MaterialTheme.shapes.extraSmall
+                                            AppShapeXs
                                         )
-                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                        .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
                                 ) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                                         Text(
                                             "TOTAL",
                                             style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Row(
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                            modifier = Modifier.fillMaxWidth()
+                                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                            modifier              = Modifier.fillMaxWidth()
                                         ) {
                                             MacroPill(MacroType.CALORIES, "${macro.cal}",   modifier = Modifier.weight(1f))
                                             MacroPill(MacroType.PROTEIN,  "${macro.prot}g", modifier = Modifier.weight(1f))
@@ -466,8 +470,8 @@ private fun ChatBubble(
                             } else {
                                 Spacer(Modifier.height(10.dp))
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.fillMaxWidth()
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                    modifier              = Modifier.fillMaxWidth()
                                 ) {
                                     MacroPill(MacroType.CALORIES, "${macro.cal}",   modifier = Modifier.weight(1f))
                                     MacroPill(MacroType.PROTEIN,  "${macro.prot}g", modifier = Modifier.weight(1f))
@@ -482,38 +486,42 @@ private fun ChatBubble(
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                 )
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier              = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceEvenly
                                 ) {
                                     TextButton(
-                                        onClick = { showDiscardConfirm = true },
-                                        enabled = actionsEnabled,
-                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                                        colors = ButtonDefaults.textButtonColors(
+                                        onClick        = { showDiscardConfirm = true },
+                                        enabled        = actionsEnabled,
+                                        contentPadding = PaddingValues(horizontal = Spacing.xs, vertical = 2.dp),
+                                        colors         = ButtonDefaults.textButtonColors(
                                             contentColor = MaterialTheme.colorScheme.error
                                         )
                                     ) {
                                         Icon(Icons.Filled.Delete, null, Modifier.size(15.dp))
                                         Spacer(Modifier.width(3.dp))
-                                        Text("Descartar", fontSize = 11.sp)
+                                        Text("Descartar", style = MaterialTheme.typography.labelSmall)
                                     }
                                     TextButton(
-                                        onClick = { showEditSheet = true },
-                                        enabled = actionsEnabled,
-                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        onClick        = { showEditSheet = true },
+                                        enabled        = actionsEnabled,
+                                        contentPadding = PaddingValues(horizontal = Spacing.xs, vertical = 2.dp)
                                     ) {
                                         Icon(Icons.Filled.Edit, null, Modifier.size(15.dp))
                                         Spacer(Modifier.width(3.dp))
-                                        Text("Editar", fontSize = 11.sp)
+                                        Text("Editar", style = MaterialTheme.typography.labelSmall)
                                     }
                                     Button(
-                                        onClick = onStartAIEdit,
-                                        enabled = actionsEnabled,
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                        onClick        = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onStartAIEdit()
+                                        },
+                                        enabled        = actionsEnabled,
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = Spacing.xs),
+                                        shape          = AppShapeMd
                                     ) {
                                         Icon(Icons.Filled.AutoFixHigh, null, Modifier.size(15.dp))
                                         Spacer(Modifier.width(3.dp))
-                                        Text("Ajustar", fontSize = 11.sp)
+                                        Text("Ajustar", style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -524,12 +532,12 @@ private fun ChatBubble(
                             if (showDiscardConfirm) {
                                 AlertDialog(
                                     onDismissRequest = { showDiscardConfirm = false },
-                                    title = { Text("¿Descartar registro?") },
-                                    text = { Text("Se eliminará \"${macro.name}\" del registro de hoy.") },
+                                    title   = { Text("¿Descartar registro?") },
+                                    text    = { Text("Se eliminará \"${macro.name}\" del registro de hoy.") },
                                     confirmButton = {
                                         TextButton(
                                             onClick = { showDiscardConfirm = false; onDiscard() },
-                                            colors = ButtonDefaults.textButtonColors(
+                                            colors  = ButtonDefaults.textButtonColors(
                                                 contentColor = MaterialTheme.colorScheme.error
                                             )
                                         ) { Text("Descartar") }
@@ -548,9 +556,9 @@ private fun ChatBubble(
 
     if (showEditSheet && msg.macroResult != null) {
         EditEntrySheet(
-            macro = msg.macroResult,
+            macro     = msg.macroResult,
             onDismiss = { showEditSheet = false },
-            onSave = { newMacro ->
+            onSave    = { newMacro ->
                 showEditSheet = false
                 onEditManually(newMacro)
             }
@@ -568,13 +576,11 @@ private fun EditEntrySheet(
     val hasIngredients = macro.ingredients.isNotEmpty()
     var name by remember { mutableStateOf(macro.name) }
 
-    // Simple editing state (used when no ingredients)
-    var cal by remember { mutableStateOf(macro.cal.toString()) }
+    var cal  by remember { mutableStateOf(macro.cal.toString()) }
     var prot by remember { mutableStateOf(macro.prot.toString()) }
     var carb by remember { mutableStateOf(macro.carb.toString()) }
-    var fat by remember { mutableStateOf(macro.fat.toString()) }
+    var fat  by remember { mutableStateOf(macro.fat.toString()) }
 
-    // Ingredient editing state (used when ingredients exist)
     val editIngredients = remember {
         mutableStateListOf(*macro.ingredients.map { ing ->
             EditIngredient(name = ing.name, cal = ing.cal.toString(), prot = ing.prot.toString(), carb = ing.carb.toString(), fat = ing.fat.toString())
@@ -583,25 +589,26 @@ private fun EditEntrySheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState       = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 24.dp)
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xl)
                 .imePadding(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             Text("Editar registro", style = MaterialTheme.typography.titleMedium)
 
             OutlinedTextField(
-                value = name,
+                value         = name,
                 onValueChange = { name = it },
-                label = { Text("Nombre del plato") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label         = { Text("Nombre del plato") },
+                singleLine    = true,
+                shape         = AppShapeMd,
+                modifier      = Modifier.fillMaxWidth()
             )
 
             if (hasIngredients) {
@@ -615,29 +622,29 @@ private fun EditEntrySheet(
                     key(ing.uid) {
                         IngredientEditorCard(
                             ingredient = ing,
-                            canDelete = editIngredients.size > 1,
-                            onUpdate = { editIngredients[index] = it },
-                            onDelete = { editIngredients.removeAt(index) }
+                            canDelete  = editIngredients.size > 1,
+                            onUpdate   = { editIngredients[index] = it },
+                            onDelete   = { editIngredients.removeAt(index) }
                         )
                     }
                 }
 
                 OutlinedButton(
-                    onClick = {
+                    onClick  = {
                         editIngredients.add(EditIngredient(name = "", cal = "0", prot = "0", carb = "0", fat = "0"))
                     },
+                    shape    = AppShapeMd,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Filled.Add, null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Spacing.xs))
                     Text("Añadir ingrediente")
                 }
 
-                // Auto-calculated total
-                val totalCal = editIngredients.sumOf { it.cal.toIntOrNull() ?: 0 }
+                val totalCal  = editIngredients.sumOf { it.cal.toIntOrNull() ?: 0 }
                 val totalProt = editIngredients.sumOf { it.prot.toFloatOrNull()?.toDouble() ?: 0.0 }.toFloat()
                 val totalCarb = editIngredients.sumOf { it.carb.toFloatOrNull()?.toDouble() ?: 0.0 }.toFloat()
-                val totalFat = editIngredients.sumOf { it.fat.toFloatOrNull()?.toDouble() ?: 0.0 }.toFloat()
+                val totalFat  = editIngredients.sumOf { it.fat.toFloatOrNull()?.toDouble() ?: 0.0 }.toFloat()
 
                 HorizontalDivider()
                 Text(
@@ -645,61 +652,63 @@ private fun EditEntrySheet(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    MacroPill(MacroType.CALORIES, "$totalCal",      modifier = Modifier.weight(1f))
-                    MacroPill(MacroType.PROTEIN,  "${totalProt}g",  modifier = Modifier.weight(1f))
-                    MacroPill(MacroType.CARBS,    "${totalCarb}g",  modifier = Modifier.weight(1f))
-                    MacroPill(MacroType.FAT,      "${totalFat}g",   modifier = Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    MacroPill(MacroType.CALORIES, "$totalCal",     modifier = Modifier.weight(1f))
+                    MacroPill(MacroType.PROTEIN,  "${totalProt}g", modifier = Modifier.weight(1f))
+                    MacroPill(MacroType.CARBS,    "${totalCarb}g", modifier = Modifier.weight(1f))
+                    MacroPill(MacroType.FAT,      "${totalFat}g",  modifier = Modifier.weight(1f))
                 }
 
                 Button(
-                    onClick = {
+                    onClick  = {
                         val ingredientMacros = editIngredients.mapIndexed { i, ing ->
                             IngredientMacro(
                                 name = ing.name.trim().ifBlank { "Ingrediente ${i + 1}" },
-                                cal = ing.cal.toIntOrNull() ?: 0,
+                                cal  = ing.cal.toIntOrNull() ?: 0,
                                 prot = ing.prot.toFloatOrNull() ?: 0f,
                                 carb = ing.carb.toFloatOrNull() ?: 0f,
-                                fat = ing.fat.toFloatOrNull() ?: 0f
+                                fat  = ing.fat.toFloatOrNull() ?: 0f
                             )
                         }
                         onSave(
                             MacroResult(
-                                name = name.trim().ifBlank { macro.name },
-                                cal = totalCal,
-                                prot = totalProt,
-                                carb = totalCarb,
-                                fat = totalFat,
+                                name        = name.trim().ifBlank { macro.name },
+                                cal         = totalCal,
+                                prot        = totalProt,
+                                carb        = totalCarb,
+                                fat         = totalFat,
                                 ingredients = ingredientMacros
                             )
                         )
                     },
+                    shape    = AppShapeMd,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Guardar cambios") }
+                ) { Text("Guardar cambios", style = MaterialTheme.typography.labelLarge) }
 
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = cal, onValueChange = { cal = it }, label = { Text("kcal") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = prot, onValueChange = { prot = it }, label = { Text("Proteína (g)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    OutlinedTextField(value = cal,  onValueChange = { cal = it },  label = { Text("kcal") },          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = prot, onValueChange = { prot = it }, label = { Text("Proteína (g)") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = carb, onValueChange = { carb = it }, label = { Text("Carbohid. (g)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = fat, onValueChange = { fat = it }, label = { Text("Grasa (g)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    OutlinedTextField(value = carb, onValueChange = { carb = it }, label = { Text("Carbohid. (g)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = fat,  onValueChange = { fat = it },  label = { Text("Grasa (g)") },     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                 }
                 Button(
-                    onClick = {
+                    onClick  = {
                         onSave(
                             MacroResult(
                                 name = name.trim().ifBlank { macro.name },
-                                cal = cal.toIntOrNull() ?: macro.cal,
+                                cal  = cal.toIntOrNull()   ?: macro.cal,
                                 prot = prot.toFloatOrNull() ?: macro.prot,
                                 carb = carb.toFloatOrNull() ?: macro.carb,
-                                fat = fat.toFloatOrNull() ?: macro.fat
+                                fat  = fat.toFloatOrNull()  ?: macro.fat
                             )
                         )
                     },
+                    shape    = AppShapeMd,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Guardar cambios") }
+                ) { Text("Guardar cambios", style = MaterialTheme.typography.labelLarge) }
             }
         }
     }
@@ -712,38 +721,42 @@ private fun IngredientEditorCard(
     onUpdate: (EditIngredient) -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = AppShapeMd
+    ) {
         Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier            = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
                 OutlinedTextField(
-                    value = ingredient.name,
+                    value         = ingredient.name,
                     onValueChange = { onUpdate(ingredient.copy(name = it)) },
-                    label = { Text("Ingrediente") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
+                    label         = { Text("Ingrediente") },
+                    singleLine    = true,
+                    shape         = AppShapeMd,
+                    modifier      = Modifier.weight(1f)
                 )
                 if (canDelete) {
                     IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                         Icon(
                             Icons.Filled.Delete,
                             contentDescription = "Eliminar",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
+                            tint               = MaterialTheme.colorScheme.error,
+                            modifier           = Modifier.size(18.dp)
                         )
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(value = ingredient.cal, onValueChange = { onUpdate(ingredient.copy(cal = it)) }, label = { Text("kcal") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = ingredient.prot, onValueChange = { onUpdate(ingredient.copy(prot = it)) }, label = { Text("Prot") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = ingredient.carb, onValueChange = { onUpdate(ingredient.copy(carb = it)) }, label = { Text("Carb") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = ingredient.fat, onValueChange = { onUpdate(ingredient.copy(fat = it)) }, label = { Text("Grasa") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                OutlinedTextField(value = ingredient.cal,  onValueChange = { onUpdate(ingredient.copy(cal  = it)) }, label = { Text("kcal") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = ingredient.prot, onValueChange = { onUpdate(ingredient.copy(prot = it)) }, label = { Text("Prot") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = ingredient.carb, onValueChange = { onUpdate(ingredient.copy(carb = it)) }, label = { Text("Carb") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = ingredient.fat,  onValueChange = { onUpdate(ingredient.copy(fat  = it)) }, label = { Text("Grasa") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -755,8 +768,8 @@ private fun SaveAsRecipeButton(macro: MacroResult, onSave: (RecipeEntity) -> Uni
     val app = LocalContext.current.applicationContext as MacroApp
 
     AssistChip(
-        onClick = { showDialog = true },
-        label = { Text("Guardar como receta", fontSize = 11.sp) },
+        onClick     = { showDialog = true },
+        label       = { Text("Guardar como receta", style = MaterialTheme.typography.labelSmall) },
         leadingIcon = {
             Icon(Icons.Filled.Bookmark, contentDescription = null, modifier = Modifier.size(14.dp))
         }
@@ -766,8 +779,8 @@ private fun SaveAsRecipeButton(macro: MacroResult, onSave: (RecipeEntity) -> Uni
         RecipeCreationDialog(
             geminiService = app.geminiService,
             initialValues = macro,
-            onSave = { recipe -> onSave(recipe); showDialog = false },
-            onDismiss = { showDialog = false }
+            onSave        = { recipe -> onSave(recipe); showDialog = false },
+            onDismiss     = { showDialog = false }
         )
     }
 }
@@ -775,30 +788,29 @@ private fun SaveAsRecipeButton(macro: MacroResult, onSave: (RecipeEntity) -> Uni
 @Composable
 private fun GreetingCard(dateLabel: String, greeting: String) {
     Column(
-        modifier = Modifier.fillMaxWidth(0.88f),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        modifier            = Modifier.fillMaxWidth(0.88f),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
     ) {
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            shape = MaterialTheme.shapes.extraSmall
+            shape = AppShapeXs
         ) {
             Text(
                 dateLabel,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                fontSize = 11.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = Spacing.xs),
+                style    = MaterialTheme.typography.labelSmall,
+                color    = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
-            shape = RoundedCornerShape(2.dp, 14.dp, 14.dp, 14.dp)
+            shape = RoundedCornerShape(4, 16, 16, 16)
         ) {
             Text(
                 greeting,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                modifier = Modifier.padding(horizontal = Spacing.md, vertical = 10.dp),
+                style    = MaterialTheme.typography.bodyMedium,
+                color    = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -809,18 +821,21 @@ private fun TypingIndicator() {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
-            shape = RoundedCornerShape(2.dp, 14.dp, 14.dp, 14.dp)
+            shape = RoundedCornerShape(4, 16, 16, 16)
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier              = Modifier.padding(horizontal = Spacing.lg, vertical = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                verticalAlignment     = Alignment.CenterVertically
             ) {
                 repeat(3) {
                     Box(
-                        Modifier.size(6.dp).background(
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), CircleShape
-                        )
+                        Modifier
+                            .size(6.dp)
+                            .background(
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                CircleShape
+                            )
                     )
                 }
             }

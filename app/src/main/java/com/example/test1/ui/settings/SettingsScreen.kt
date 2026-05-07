@@ -1,8 +1,10 @@
 package com.example.test1.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -11,25 +13,30 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.test1.MacroApp
 import com.example.test1.ui.theme.*
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    val app = LocalContext.current.applicationContext as MacroApp
+    val app     = LocalContext.current.applicationContext as MacroApp
     val vm: SettingsViewModel = viewModel { SettingsViewModel(app.goalRepository) }
-    val goal by vm.goal.collectAsState()
+    val goal    by vm.goal.collectAsState()
+    val haptics = LocalHapticFeedback.current
 
-    var kcal by remember(goal.kcal) { mutableStateOf(goal.kcal.toString()) }
-    var protein by remember(goal.protein) { mutableStateOf(goal.protein.toString()) }
-    var carbs by remember(goal.carbs) { mutableStateOf(goal.carbs.toString()) }
-    var fat by remember(goal.fat) { mutableStateOf(goal.fat.toString()) }
+    var kcal    by remember(goal.kcal)     { mutableStateOf(goal.kcal.toString()) }
+    var protein by remember(goal.protein)  { mutableStateOf(goal.protein.toString()) }
+    var carbs   by remember(goal.carbs)    { mutableStateOf(goal.carbs.toString()) }
+    var fat     by remember(goal.fat)      { mutableStateOf(goal.fat.toString()) }
 
     var showSavedSnackbar by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -53,7 +60,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
-                        .padding(end = 16.dp),
+                        .padding(end = Spacing.lg),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onBack) {
@@ -66,12 +73,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Text(
                         "Objetivos diarios",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                 }
                 HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
+                    color     = MaterialTheme.colorScheme.outlineVariant,
                     thickness = 0.5.dp
                 )
             }
@@ -83,72 +89,114 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = Spacing.xl, vertical = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xl)
         ) {
-            Text("Configura tus metas nutricionales diarias", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-            GoalField(
-                label = "Calorías (kcal)",
-                value = kcal,
-                onValueChange = { kcal = it },
-                color = CalorieColor
-            )
-            GoalField(
-                label = "Proteína (g)",
-                value = protein,
-                onValueChange = { protein = it },
-                color = ProteinColor
-            )
-            GoalField(
-                label = "Carbohidratos (g)",
-                value = carbs,
-                onValueChange = { carbs = it },
-                color = CarbColor
-            )
-            GoalField(
-                label = "Grasas (g)",
-                value = fat,
-                onValueChange = { fat = it },
-                color = FatColor
+            Text(
+                "Configura tus metas nutricionales diarias",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(Modifier.height(8.dp))
+            // ── OBJETIVOS DIARIOS ─────────────────────────────────────────
+            Text(
+                "OBJETIVOS DIARIOS",
+                style = MaterialTheme.typography.labelMedium,
+                color = TextTertiary
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                GoalInputRow("Calorías",      kcal,    { kcal = it },    "kcal", CalorieColor)
+                GoalInputRow("Proteína",      protein, { protein = it }, "g",    ProteinColor)
+                GoalInputRow("Carbohidratos", carbs,   { carbs = it },   "g",    CarbColor)
+                GoalInputRow("Grasas",        fat,     { fat = it },     "g",    FatColor)
+            }
 
             Button(
-                onClick = {
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape    = AppShapeMd,
+                onClick  = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     val k = kcal.toIntOrNull() ?: return@Button
                     val p = protein.toIntOrNull() ?: return@Button
                     val c = carbs.toIntOrNull() ?: return@Button
                     val f = fat.toIntOrNull() ?: return@Button
                     vm.saveGoal(k, p, c, f)
                     showSavedSnackbar = true
-                },
-                modifier = Modifier.fillMaxWidth()
+                }
             ) {
-                Text("Guardar objetivos", fontWeight = FontWeight.SemiBold)
+                Text("Guardar objetivos", style = MaterialTheme.typography.labelLarge)
             }
         }
     }
 }
 
 @Composable
-private fun GoalField(
+private fun GoalInputRow(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
-    color: androidx.compose.ui.graphics.Color
+    unit: String,
+    accentColor: Color
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth(),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = color,
-            focusedLabelColor = color
-        )
-    )
+    var isFocused    by remember { mutableStateOf(false) }
+    val surfaceColor  = MaterialTheme.colorScheme.surfaceVariant
+    val primary       = MaterialTheme.colorScheme.primary
+    val onSurface     = MaterialTheme.colorScheme.onSurface
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .background(surfaceColor, AppShapeMd)
+            .border(1.dp, if (isFocused) primary else Color.Transparent, AppShapeMd)
+            .padding(horizontal = Spacing.lg),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isFocused) accentColor else onSurface
+            )
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                BasicTextField(
+                    value           = value,
+                    onValueChange   = onValueChange,
+                    textStyle       = MaterialTheme.typography.bodyMedium.copy(
+                        color               = onSurface,
+                        textAlign           = TextAlign.End,
+                        fontFeatureSettings = FontFeatureTnum
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine      = true,
+                    cursorBrush     = SolidColor(primary),
+                    modifier        = Modifier
+                        .widthIn(min = 48.dp, max = 100.dp)
+                        .onFocusChanged { isFocused = it.isFocused },
+                    decorationBox   = { innerTextField ->
+                        Box(contentAlignment = Alignment.CenterEnd) {
+                            if (value.isEmpty()) {
+                                Text(
+                                    "—",
+                                    style = MaterialTheme.typography.bodyMedium.copy(textAlign = TextAlign.End),
+                                    color = TextTertiary
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
+                Text(unit, style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+            }
+        }
+    }
 }
