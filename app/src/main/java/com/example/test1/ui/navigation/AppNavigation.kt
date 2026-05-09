@@ -22,8 +22,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.test1.data.api.BarcodeResult
 import com.example.test1.ui.chat.ChatScreen
+import com.example.test1.ui.product.ProductFormScreen
 import com.example.test1.ui.recipe.RecipeScreen
+import com.example.test1.ui.scanner.BarcodeScannerScreen
 import com.example.test1.ui.settings.SettingsScreen
 import com.example.test1.ui.splash.SplashScreen
 import com.example.test1.ui.summary.SummaryScreen
@@ -44,6 +47,7 @@ fun AppNavigation() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute   = backStackEntry?.destination?.route
     val haptics        = LocalHapticFeedback.current
+    var pendingBarcode by remember { mutableStateOf<BarcodeResult?>(null) }
 
     Scaffold(
         bottomBar = {
@@ -153,6 +157,25 @@ fun AppNavigation() {
             composable(Tab.Recipes.route) { RecipeScreen() }
             composable("settings") {
                 SettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("barcode_scanner") {
+                BarcodeScannerScreen(
+                    onProductFound = { result ->
+                        pendingBarcode = result
+                        navController.navigate("product_form")
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("product_form") {
+                ProductFormScreen(
+                    barcodeResult = pendingBarcode,
+                    onBack        = { navController.popBackStack() },
+                    onComplete    = {
+                        pendingBarcode = null
+                        navController.popBackStack("product_form", inclusive = true)
+                    }
+                )
             }
         }
     }

@@ -161,6 +161,18 @@
     <string name="settings_macros_equivalent">Macros equivalent to %d kcal</string>
     <string name="settings_macros_mismatch">Macros calculate %d kcal (goal: %d kcal)</string>
 
+    <!-- Product form screen -->
+    <string name="product_form_title">New Product</string>
+    <string name="product_form_barcode_label">Barcode: %s</string>
+    <string name="product_form_section_basic">BASIC INFORMATION</string>
+    <string name="product_form_name">Product name</string>
+    <string name="product_form_brand">Brand (optional)</string>
+    <string name="product_form_section_nutrition">NUTRITIONAL VALUES (PER 100G)</string>
+    <string name="product_form_save">Save to my products</string>
+    <string name="product_form_add_to_log">Add to today\'s log</string>
+    <string name="product_form_saved">Product saved</string>
+    <string name="product_form_source_manual">Manual</string>
+
     <!-- Barcode scanner screen -->
     <string name="scanner_title">Scan Product</string>
     <string name="scanner_hint">Point at the product barcode</string>
