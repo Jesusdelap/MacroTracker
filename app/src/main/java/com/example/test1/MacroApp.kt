@@ -1,6 +1,7 @@
 package com.example.test1
 
 import android.app.Application
+import com.example.test1.data.api.BarcodeNutritionService
 import com.example.test1.data.api.GeminiService
 import com.example.test1.data.db.AppDatabase
 import com.example.test1.data.repository.ChatMessageRepository
@@ -17,5 +18,6 @@ class MacroApp : Application() {
     val goalRepository by lazy { GoalRepository(database.dailyGoalDao()) }
     val chatMessageRepository by lazy { ChatMessageRepository(database.chatMessageDao()) }
     val geminiService by lazy { GeminiService() }
+    val barcodeNutritionService by lazy { BarcodeNutritionService() }
     val selectedDate = MutableStateFlow(LocalDate.now().toString())
 }
