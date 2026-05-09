@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MacroTracker</string>
+
+    <!-- Actions -->
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_ok">Aceptar</string>
+    <string name="action_close">Cerrar</string>
+    <string name="action_undo">Deshacer</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="action_edit">Editar</string>
+    <string name="action_add">Añadir</string>
+    <string name="action_save">Guardar</string>
+
+    <!-- Dates -->
+    <string name="date_today">Hoy</string>
+    <string name="date_yesterday">Ayer</string>
+    <string name="date_tomorrow">Mañana</string>
+    <string name="date_chat_format">EEEE d \'de\' MMMM</string>
+
+    <!-- Macro labels (short, for pills) -->
+    <string name="macro_label_kcal">KCAL</string>
+    <string name="macro_label_protein">PROT</string>
+    <string name="macro_label_carbs">CARB</string>
+    <string name="macro_label_fat">GRAS</string>
+
+    <!-- Macro full names -->
+    <string name="macro_fullname_calories">Calorías</string>
+    <string name="macro_fullname_protein">Proteína</string>
+    <string name="macro_fullname_carbs">Carbohidratos</string>
+    <string name="macro_fullname_fat">Grasas</string>
+
+    <!-- Macro field labels -->
+    <string name="macro_field_protein">Proteína (g)</string>
+    <string name="macro_field_carbs">Carbohidratos (g)</string>
+    <string name="macro_field_fat">Grasas (g)</string>
+    <string name="macro_field_protein_short">Prot</string>
+    <string name="macro_field_carbs_short">Carb</string>
+    <string name="macro_field_fat_short">Gras</string>
+    <string name="macro_warning_kcal">Las macros calculan %d kcal</string>
+
+    <!-- Chat screen -->
+    <string name="chat_title">Registro</string>
+    <string name="chat_input_hint">Describe tu comida…</string>
+    <string name="chat_input_hint_edit">Describe la corrección…</string>
+    <string name="chat_history_readonly">Historial — solo lectura</string>
+    <string name="chat_source_camera">Cámara</string>
+    <string name="chat_source_gallery">Galería</string>
+    <string name="chat_debug_title">Debug — respuesta Gemini</string>
+    <string name="chat_edit_title">Editar entrada</string>
+    <string name="chat_dish_name">Nombre del plato</string>
+    <string name="chat_ingredients_title">Ingredientes</string>
+    <string name="chat_add_ingredient">Añadir ingrediente</string>
+    <string name="chat_total_calculated">Total calculado</string>
+    <string name="chat_save_changes">Guardar cambios</string>
+    <string name="chat_ingredient_kcal_hint">Calculado: %d kcal</string>
+    <string name="chat_save_as_recipe">Guardar como receta</string>
+    <string name="chat_from_recipes">De tus recetas</string>
+    <string name="chat_action_repeat">Repetir</string>
+    <string name="chat_action_discard">Descartar</string>
+    <string name="chat_action_adjust">Ajustar</string>
+    <string name="chat_discard_title">¿Descartar entrada?</string>
+    <string name="chat_discard_message">\"%1$s\" se eliminará del registro de hoy.</string>
+    <string name="chat_correcting">Corrigiendo: %s</string>
+    <string name="chat_cancel_edit">Cancelar</string>
+    <string name="chat_photo_label">📷 Foto enviada</string>
+
+    <!-- Chat ViewModel messages -->
+    <string name="vm_chat_no_food_in_image">No se detectó comida en la imagen. Prueba con otra foto.</string>
+    <string name="vm_chat_entry_updated">Registro actualizado ✓</string>
+    <string name="vm_chat_image_failed">No se pudo procesar la imagen.</string>
+    <string name="vm_chat_edit_prompt">¿Qué quieres corregir? Describe los cambios y los ajustaré.</string>
+    <string name="vm_chat_entry_discarded">Entrada descartada</string>
+    <string name="vm_chat_error_processing">Error al procesar: %s</string>
+    <string name="vm_chat_error_retry">Reintentar</string>
+    <string name="vm_chat_error_rate_limit">Límite de peticiones alcanzado. Espera un momento e inténtalo de nuevo.</string>
+    <string name="vm_chat_repeated">\"%s\" añadido de nuevo ✓</string>
+    <string name="vm_chat_repeated_desc">Repetido: %s</string>
+
+    <!-- Recipe screen -->
+    <string name="recipe_title">Recetario</string>
+    <plurals name="recipe_count">
+        <item quantity="one">%d receta</item>
+        <item quantity="other">%d recetas</item>
+    </plurals>
+    <string name="recipe_new">Nueva receta</string>
+    <string name="recipe_search_hint">Buscar receta…</string>
+    <string name="recipe_search_clear">Limpiar</string>
+    <string name="recipe_empty_title">Aún no tienes recetas guardadas</string>
+    <string name="recipe_empty_message">Crea tu primera receta pulsando el botón</string>
+    <string name="recipe_no_results">Sin resultados para \"%s\"</string>
+    <string name="recipe_per_100g_badge">por 100g</string>
+    <string name="recipe_favorite_add">Añadir a favoritos</string>
+    <string name="recipe_favorite_remove">Quitar de favoritos</string>
+    <string name="recipe_deleted">\"%s\" eliminada</string>
+    <string name="recipe_servings_short">%d rac.</string>
+    <string name="recipe_usage_count">%d×</string>
+    <string name="recipe_section_basic">INFORMACIÓN BÁSICA</string>
+    <string name="recipe_name_field">Nombre de la receta</string>
+    <string name="recipe_notes_field">Notas / ingredientes (opcional)</string>
+    <string name="recipe_section_servings">RACIONES</string>
+    <string name="recipe_mode_per_serving">Por ración</string>
+    <string name="recipe_mode_per_100g">Por 100g</string>
+    <string name="recipe_servings_field">Raciones</string>
+    <string name="recipe_per_100g_note">Se pedirá el peso al añadir al registro.</string>
+    <string name="recipe_section_nutrition_serving">VALORES NUTRICIONALES (POR RACIÓN)</string>
+    <string name="recipe_section_nutrition_100g">VALORES NUTRICIONALES (POR 100G)</string>
+    <string name="recipe_save">Guardar receta</string>
+    <string name="recipe_save_changes">Guardar cambios</string>
+    <string name="recipe_tab_manual">Manual</string>
+    <string name="recipe_tab_ai">Con IA</string>
+    <string name="recipe_dialog_new">Nueva receta</string>
+    <string name="recipe_dialog_edit">Editar receta</string>
+    <string name="recipe_dialog_save_as">Guardar como receta</string>
+    <string name="recipe_weight_question">¿Cuántos gramos vas a tomar?</string>
+    <string name="recipe_weight_field">Gramos</string>
+    <string name="recipe_ai_greeting">¡Hola! Cuéntame la receta que quieres crear: nombre e ingredientes con cantidades.</string>
+    <string name="recipe_ai_analyzing">Analizando…</string>
+    <string name="recipe_ai_input_hint">Describe tu receta…</string>
+    <string name="recipe_ai_detected">Receta detectada</string>
+    <string name="recipe_ai_name_field">Nombre</string>
+    <string name="recipe_ai_per_100g_label">Valores por 100g</string>
+    <string name="recipe_ai_per_100g_note">Se pedirá el peso al añadir al registro</string>
+    <string name="recipe_ai_save">Guardar receta</string>
+    <string name="recipe_ai_error">Error: %s</string>
+    <string name="recipe_ai_error_retry">Reintentar</string>
+
+    <!-- Summary screen -->
+    <string name="summary_title">Resumen</string>
+    <string name="summary_settings_cd">Ajustes</string>
+    <string name="summary_prev_day_cd">Día anterior</string>
+    <string name="summary_next_day_cd">Día siguiente</string>
+    <string name="summary_select_date_cd">Seleccionar fecha</string>
+    <string name="summary_remaining">RESTANTE</string>
+    <string name="summary_kcal_consumed">%1$d de %2$d kcal consumidas</string>
+    <string name="summary_macronutrients">MACRONUTRIENTES</string>
+    <string name="summary_meals_title">COMIDAS REGISTRADAS  %d</string>
+    <string name="summary_empty_title">No hay comidas registradas hoy</string>
+    <string name="summary_empty_message">Empieza añadiendo tu primera comida desde la pestaña Registro</string>
+    <string name="summary_go_to_log">Ir al Registro →</string>
+    <string name="summary_entry_deleted">\"%s\" eliminado</string>
+    <string name="summary_delete_cd">Eliminar</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Objetivos diarios</string>
+    <string name="settings_back_cd">Volver</string>
+    <string name="settings_description">Configura tus metas nutricionales diarias</string>
+    <string name="settings_section_goals">OBJETIVOS DIARIOS</string>
+    <string name="settings_save">Guardar objetivos</string>
+    <string name="settings_saved">Objetivos guardados</string>
+    <string name="settings_macros_equivalent">Las macros equivalen a %d kcal</string>
+    <string name="settings_macros_mismatch">Las macros calculan %d kcal (objetivo: %d kcal)</string>
+
+    <!-- Chat greetings -->
+    <string-array name="chat_greetings">
+        <item>¿Qué has comido? Cuéntame y calculo los macros al instante.</item>
+        <item>¡Hola! ¿Listo para registrar? Describe tu comida o envía una foto.</item>
+        <item>¿Qué hay en el menú hoy? Cuéntame y lo apunto.</item>
+        <item>¿Snack, almuerzo o cena? Dime y lo registramos juntos.</item>
+        <item>¿Comiste algo rico? Descríbelo y te doy los macros.</item>
+        <item>Puedes contarme lo que has comido o enviar una foto directamente.</item>
+        <item>¿Algo que registrar? Te escucho.</item>
+        <item>¿Desayunaste? Cuéntame qué tomaste y lo añadimos.</item>
+    </string-array>
+</resources>

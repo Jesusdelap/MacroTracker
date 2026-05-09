@@ -15,14 +15,15 @@ import com.example.test1.ui.theme.*
 fun MacroPill(
     macroType: MacroType,
     value: String,
-    label: String = macroType.label(),
+    label: String? = null,
     modifier: Modifier = Modifier
 ) {
     val color = macroType.color()
+    val resolvedLabel = label ?: macroType.label()
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
-            .background(color.copy(alpha = 0.10f), AppShapeSm)   // 8dp radius, sin bordes
+            .background(color.copy(alpha = 0.10f), AppShapeSm)
             .padding(horizontal = 12.dp, vertical = Spacing.sm)
     ) {
         Text(
@@ -34,7 +35,7 @@ fun MacroPill(
         )
         Spacer(Modifier.height(2.dp))
         Text(
-            text  = label,
+            text  = resolvedLabel,
             style = MaterialTheme.typography.labelSmall,
             color = TextTertiary
         )

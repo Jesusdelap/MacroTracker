@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Warning
 import com.example.test1.data.db.entity.RecipeEntity
 import com.example.test1.ui.recipe.RecipeCreationDialog
 import androidx.compose.material3.*
@@ -41,42 +43,38 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.test1.BuildConfig
 import com.example.test1.MacroApp
+import com.example.test1.R
 import com.example.test1.data.api.IngredientMacro
 import com.example.test1.data.api.MacroResult
 import com.example.test1.ui.components.MacroPill
 import com.example.test1.ui.theme.*
 import java.io.File
+import kotlin.math.roundToInt
 
-private val CHAT_GREETINGS = listOf(
-    "¿Qué has comido? Cuéntame y calculo los macros al momento.",
-    "¡Hola! ¿Lista para registrar? Describe tu comida o manda una foto.",
-    "¿Qué hay de comer hoy? Dímelo y lo apunto.",
-    "¿Snack, comida o cena? Cuéntame y lo registramos juntos.",
-    "¿Comiste algo rico? Descríbelo y te digo los macros.",
-    "Puedes escribirme lo que has comido o enviar una foto directamente.",
-    "¿Algo que quieras registrar? Soy todo oídos.",
-    "¿Ya desayunaste? Cuéntame qué tomaste y lo añadimos.",
-)
-
+@Composable
 private fun formatChatDate(dateStr: String): String {
-    val date    = java.time.LocalDate.parse(dateStr)
-    val today   = java.time.LocalDate.now()
-    val dayName = date.dayOfWeek
-        .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale("es"))
+    val today     = stringResource(R.string.date_today)
+    val yesterday = stringResource(R.string.date_yesterday)
+    val tomorrow  = stringResource(R.string.date_tomorrow)
+    val pattern   = stringResource(R.string.date_chat_format)
+    val date = java.time.LocalDate.parse(dateStr)
+    val now  = java.time.LocalDate.now()
+    val formatted = java.time.format.DateTimeFormatter
+        .ofPattern(pattern, java.util.Locale.getDefault())
+        .format(date)
         .replaceFirstChar { it.uppercase() }
-    val day   = date.dayOfMonth
-    val month = date.month
-        .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale("es"))
     return when {
-        date == today              -> "Hoy · $dayName $day de $month"
-        date == today.minusDays(1) -> "Ayer · $dayName $day de $month"
-        date == today.plusDays(1)  -> "Mañana · $dayName $day de $month"
-        else                       -> "$dayName $day de $month"
+        date == now              -> "$today · $formatted"
+        date == now.minusDays(1) -> "$yesterday · $formatted"
+        date == now.plusDays(1)  -> "$tomorrow · $formatted"
+        else                     -> formatted
     }
 }
 
@@ -87,13 +85,24 @@ private data class EditIngredient(
     val prot: String,
     val carb: String,
     val fat: String
-)
+) {
+    val calculatedCal: Int get() =
+        ((prot.toFloatOrNull() ?: 0f) * 4f +
+         (carb.toFloatOrNull() ?: 0f) * 4f +
+         (fat.toFloatOrNull() ?: 0f) * 9f).roundToInt()
+    val hasMismatch: Boolean get() {
+        val entered = cal.toIntOrNull() ?: return false
+        return calculatedCal > 0 &&
+            kotlin.math.abs(entered - calculatedCal) > calculatedCal * 0.10f
+    }
+}
 
 @Composable
 fun ChatScreen(onNavigateToSettings: () -> Unit) {
     val app      = LocalContext.current.applicationContext as MacroApp
     val vm: ChatViewModel = viewModel {
         ChatViewModel(
+            app,
             app.foodRepository,
             app.recipeRepository,
             app.geminiService,
@@ -104,7 +113,8 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
     }
     val uiState      by vm.uiState.collectAsState()
     val selectedDate by app.selectedDate.collectAsState()
-    val greeting     = remember { CHAT_GREETINGS.random() }
+    val greetings    = stringArrayResource(R.array.chat_greetings)
+    val greeting     = remember { greetings.random() }
     val today        = remember { java.time.LocalDate.now().toString() }
     val isPastDay    = selectedDate < today
     val listState    = rememberLazyListState()
@@ -157,9 +167,9 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
     uiState.debugInfo?.let { info ->
         AlertDialog(
             onDismissRequest = vm::clearDebugInfo,
-            title   = { Text("Debug — respuesta Gemini") },
+            title   = { Text(stringResource(R.string.chat_debug_title)) },
             text    = { Text(info, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) },
-            confirmButton = { TextButton(onClick = vm::clearDebugInfo) { Text("Cerrar") } }
+            confirmButton = { TextButton(onClick = vm::clearDebugInfo) { Text(stringResource(R.string.action_close)) } }
         )
     }
 
@@ -181,7 +191,7 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Registro",
+                        stringResource(R.string.chat_title),
                         style    = MaterialTheme.typography.titleMedium,
                         color    = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.weight(1f)
@@ -215,7 +225,8 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                         onSaveAsRecipe = { recipe -> vm.saveAsRecipe(recipe) },
                         onDiscard      = { vm.discardEntry(msg.foodEntryId!!, msg.id) },
                         onEditManually = { newMacro -> vm.updateEntryManually(msg.foodEntryId!!, msg.id, newMacro) },
-                        onStartAIEdit  = { vm.startAIEdit(msg.foodEntryId!!, msg.id, msg.macroResult!!) }
+                        onStartAIEdit  = { vm.startAIEdit(msg.foodEntryId!!, msg.id, msg.macroResult!!) },
+                        onRepeat       = { vm.repeatEntry(msg.macroResult!!) }
                     )
                 }
                 if (uiState.isLoading) {
@@ -241,7 +252,7 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                         )
                         Spacer(Modifier.width(Spacing.sm))
                         Text(
-                            "Corrigiendo: ${editing.originalMacro.name}",
+                            stringResource(R.string.chat_correcting, editing.originalMacro.name),
                             style    = MaterialTheme.typography.bodySmall,
                             color    = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.weight(1f)
@@ -252,13 +263,13 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                         ) {
                             Icon(
                                 Icons.Filled.Close,
-                                contentDescription = "Cancelar",
+                                contentDescription = stringResource(R.string.action_cancel),
                                 modifier           = Modifier.size(14.dp),
                                 tint               = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                             Spacer(Modifier.width(Spacing.xs))
                             Text(
-                                "Cancelar",
+                                stringResource(R.string.action_cancel),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
@@ -294,7 +305,7 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                             )
                             Spacer(Modifier.width(Spacing.sm))
                             Text(
-                                "Historial — solo lectura",
+                                stringResource(R.string.chat_history_readonly),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -320,11 +331,11 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                                     onDismissRequest = { showSourceMenu = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text    = { Text("Cámara") },
+                                        text    = { Text(stringResource(R.string.chat_source_camera)) },
                                         onClick = { showSourceMenu = false; launchCamera() }
                                     )
                                     DropdownMenuItem(
-                                        text    = { Text("Galería") },
+                                        text    = { Text(stringResource(R.string.chat_source_gallery)) },
                                         onClick = {
                                             showSourceMenu = false
                                             galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -339,7 +350,7 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                                 modifier      = Modifier.weight(1f),
                                 placeholder   = {
                                     Text(
-                                        if (uiState.editingEntry != null) "Describe la corrección…" else "Describe tu comida…",
+                                        if (uiState.editingEntry != null) stringResource(R.string.chat_input_hint_edit) else stringResource(R.string.chat_input_hint),
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 },
@@ -376,7 +387,8 @@ private fun ChatBubble(
     onSaveAsRecipe: (RecipeEntity) -> Unit,
     onDiscard: () -> Unit,
     onEditManually: (MacroResult) -> Unit,
-    onStartAIEdit: () -> Unit
+    onStartAIEdit: () -> Unit,
+    onRepeat: () -> Unit
 ) {
     var showDiscardConfirm by remember { mutableStateOf(false) }
     var showEditSheet      by remember { mutableStateOf(false) }
@@ -499,7 +511,7 @@ private fun ChatBubble(
                                     ) {
                                         Icon(Icons.Filled.Delete, null, Modifier.size(15.dp))
                                         Spacer(Modifier.width(3.dp))
-                                        Text("Descartar", style = MaterialTheme.typography.labelSmall)
+                                        Text(stringResource(R.string.chat_action_discard), style = MaterialTheme.typography.labelSmall)
                                     }
                                     TextButton(
                                         onClick        = { showEditSheet = true },
@@ -508,7 +520,7 @@ private fun ChatBubble(
                                     ) {
                                         Icon(Icons.Filled.Edit, null, Modifier.size(15.dp))
                                         Spacer(Modifier.width(3.dp))
-                                        Text("Editar", style = MaterialTheme.typography.labelSmall)
+                                        Text(stringResource(R.string.action_edit), style = MaterialTheme.typography.labelSmall)
                                     }
                                     Button(
                                         onClick        = {
@@ -521,29 +533,50 @@ private fun ChatBubble(
                                     ) {
                                         Icon(Icons.Filled.AutoFixHigh, null, Modifier.size(15.dp))
                                         Spacer(Modifier.width(3.dp))
-                                        Text("Ajustar", style = MaterialTheme.typography.labelSmall)
+                                        Text(stringResource(R.string.chat_action_adjust), style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
 
                             Spacer(Modifier.height(2.dp))
-                            SaveAsRecipeButton(macro, onSaveAsRecipe)
+                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                if (macro.fromRecipe != null) {
+                                    AssistChip(
+                                        onClick     = {},
+                                        label       = { Text(stringResource(R.string.chat_from_recipes), style = MaterialTheme.typography.labelSmall) },
+                                        leadingIcon = {
+                                            Icon(Icons.Filled.Bookmark, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        }
+                                    )
+                                } else {
+                                    SaveAsRecipeButton(macro, onSaveAsRecipe)
+                                }
+                                if (msg.foodEntryId != null) {
+                                    AssistChip(
+                                        onClick     = { onRepeat() },
+                                        label       = { Text(stringResource(R.string.chat_action_repeat), style = MaterialTheme.typography.labelSmall) },
+                                        leadingIcon = {
+                                            Icon(Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        }
+                                    )
+                                }
+                            }
 
                             if (showDiscardConfirm) {
                                 AlertDialog(
                                     onDismissRequest = { showDiscardConfirm = false },
-                                    title   = { Text("¿Descartar registro?") },
-                                    text    = { Text("Se eliminará \"${macro.name}\" del registro de hoy.") },
+                                    title   = { Text(stringResource(R.string.chat_discard_title)) },
+                                    text    = { Text(stringResource(R.string.chat_discard_message, macro.name)) },
                                     confirmButton = {
                                         TextButton(
                                             onClick = { showDiscardConfirm = false; onDiscard() },
                                             colors  = ButtonDefaults.textButtonColors(
                                                 contentColor = MaterialTheme.colorScheme.error
                                             )
-                                        ) { Text("Descartar") }
+                                        ) { Text(stringResource(R.string.chat_action_discard)) }
                                     },
                                     dismissButton = {
-                                        TextButton(onClick = { showDiscardConfirm = false }) { Text("Cancelar") }
+                                        TextButton(onClick = { showDiscardConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
                                     }
                                 )
                             }
@@ -581,6 +614,21 @@ private fun EditEntrySheet(
     var carb by remember { mutableStateOf(macro.carb.toString()) }
     var fat  by remember { mutableStateOf(macro.fat.toString()) }
 
+    val calculatedCal by remember {
+        derivedStateOf {
+            ((prot.toFloatOrNull() ?: 0f) * 4f +
+             (carb.toFloatOrNull() ?: 0f) * 4f +
+             (fat.toFloatOrNull() ?: 0f) * 9f).roundToInt()
+        }
+    }
+    val calMismatch by remember {
+        derivedStateOf {
+            val entered = cal.toIntOrNull()
+            entered != null && calculatedCal > 0 &&
+            kotlin.math.abs(entered - calculatedCal) > calculatedCal * 0.10f
+        }
+    }
+
     val editIngredients = remember {
         mutableStateListOf(*macro.ingredients.map { ing ->
             EditIngredient(name = ing.name, cal = ing.cal.toString(), prot = ing.prot.toString(), carb = ing.carb.toString(), fat = ing.fat.toString())
@@ -600,12 +648,12 @@ private fun EditEntrySheet(
                 .imePadding(),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            Text("Editar registro", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.chat_edit_title), style = MaterialTheme.typography.titleMedium)
 
             OutlinedTextField(
                 value         = name,
                 onValueChange = { name = it },
-                label         = { Text("Nombre del plato") },
+                label         = { Text(stringResource(R.string.chat_dish_name)) },
                 singleLine    = true,
                 shape         = AppShapeMd,
                 modifier      = Modifier.fillMaxWidth()
@@ -613,7 +661,7 @@ private fun EditEntrySheet(
 
             if (hasIngredients) {
                 Text(
-                    "Ingredientes",
+                    stringResource(R.string.chat_ingredients_title),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -641,7 +689,7 @@ private fun EditEntrySheet(
                     Text("Añadir ingrediente")
                 }
 
-                val totalCal  = editIngredients.sumOf { it.cal.toIntOrNull() ?: 0 }
+                val totalCal  = editIngredients.sumOf { it.cal.toIntOrNull() ?: it.calculatedCal }
                 val totalProt = editIngredients.sumOf { it.prot.toFloatOrNull()?.toDouble() ?: 0.0 }.toFloat()
                 val totalCarb = editIngredients.sumOf { it.carb.toFloatOrNull()?.toDouble() ?: 0.0 }.toFloat()
                 val totalFat  = editIngredients.sumOf { it.fat.toFloatOrNull()?.toDouble() ?: 0.0 }.toFloat()
@@ -664,7 +712,7 @@ private fun EditEntrySheet(
                         val ingredientMacros = editIngredients.mapIndexed { i, ing ->
                             IngredientMacro(
                                 name = ing.name.trim().ifBlank { "Ingrediente ${i + 1}" },
-                                cal  = ing.cal.toIntOrNull() ?: 0,
+                                cal  = ing.cal.toIntOrNull() ?: ing.calculatedCal,
                                 prot = ing.prot.toFloatOrNull() ?: 0f,
                                 carb = ing.carb.toFloatOrNull() ?: 0f,
                                 fat  = ing.fat.toFloatOrNull() ?: 0f
@@ -687,19 +735,38 @@ private fun EditEntrySheet(
 
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    OutlinedTextField(value = cal,  onValueChange = { cal = it },  label = { Text("kcal") },          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                     OutlinedTextField(value = prot, onValueChange = { prot = it }, label = { Text("Proteína (g)") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = carb, onValueChange = { carb = it }, label = { Text("Carbohid. (g)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    OutlinedTextField(value = carb, onValueChange = { carb = it }, label = { Text("Carbohid. (g)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                     OutlinedTextField(value = fat,  onValueChange = { fat = it },  label = { Text("Grasa (g)") },     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = cal,  onValueChange = { cal = it },  label = { Text("kcal") },          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                }
+                if (calMismatch) {
+                    Surface(color = FatColor.copy(alpha = 0.12f), shape = AppShapeXs) {
+                        Row(
+                            modifier              = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            verticalAlignment     = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.Warning, contentDescription = null,
+                                modifier = Modifier.size(14.dp), tint = FatColor)
+                            Text(
+                                "Las macros calculan $calculatedCal kcal",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 }
                 Button(
                     onClick  = {
                         onSave(
                             MacroResult(
                                 name = name.trim().ifBlank { macro.name },
-                                cal  = cal.toIntOrNull()   ?: macro.cal,
+                                cal  = cal.toIntOrNull() ?: macro.cal,
                                 prot = prot.toFloatOrNull() ?: macro.prot,
                                 carb = carb.toFloatOrNull() ?: macro.carb,
                                 fat  = fat.toFloatOrNull()  ?: macro.fat
@@ -753,10 +820,29 @@ private fun IngredientEditorCard(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                OutlinedTextField(value = ingredient.cal,  onValueChange = { onUpdate(ingredient.copy(cal  = it)) }, label = { Text("kcal") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                 OutlinedTextField(value = ingredient.prot, onValueChange = { onUpdate(ingredient.copy(prot = it)) }, label = { Text("Prot") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                 OutlinedTextField(value = ingredient.carb, onValueChange = { onUpdate(ingredient.copy(carb = it)) }, label = { Text("Carb") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                 OutlinedTextField(value = ingredient.fat,  onValueChange = { onUpdate(ingredient.copy(fat  = it)) }, label = { Text("Grasa") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = ingredient.cal,  onValueChange = { onUpdate(ingredient.copy(cal  = it)) }, label = { Text("kcal") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+            }
+            if (ingredient.hasMismatch) {
+                Surface(color = FatColor.copy(alpha = 0.12f), shape = AppShapeXs) {
+                    Row(
+                        modifier              = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.sm, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Warning, contentDescription = null,
+                            modifier = Modifier.size(12.dp), tint = FatColor)
+                        Text(
+                            "Calculado: ${ingredient.calculatedCal} kcal",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
             }
         }
     }

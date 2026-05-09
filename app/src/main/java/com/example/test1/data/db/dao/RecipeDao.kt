@@ -6,10 +6,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface RecipeDao {
-    @Query("SELECT * FROM recipes ORDER BY createdAt DESC")
+    @Query("SELECT * FROM recipes ORDER BY isFavorite DESC, createdAt DESC")
     fun getAllRecipes(): Flow<List<RecipeEntity>>
 
-    @Query("SELECT * FROM recipes WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
+    @Query("SELECT * FROM recipes WHERE name LIKE '%' || :query || '%' ORDER BY isFavorite DESC, name ASC")
     fun searchRecipes(query: String): Flow<List<RecipeEntity>>
 
     @Insert

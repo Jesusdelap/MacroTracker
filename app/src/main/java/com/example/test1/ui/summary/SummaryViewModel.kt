@@ -10,6 +10,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.ZoneId
 
 data class DaySummary(
     val entries: List<FoodEntryEntity> = emptyList(),
@@ -54,7 +55,15 @@ class SummaryViewModel(
         sharedDate.value = LocalDate.parse(sharedDate.value).plusDays(1).toString()
     }
 
+    fun goToDate(date: LocalDate) {
+        sharedDate.value = date.toString()
+    }
+
     fun deleteEntry(entry: FoodEntryEntity) {
         viewModelScope.launch { foodRepository.delete(entry) }
+    }
+
+    fun restoreEntry(entry: FoodEntryEntity) {
+        viewModelScope.launch { foodRepository.insert(entry.copy(id = 0)) }
     }
 }

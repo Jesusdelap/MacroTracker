@@ -1,12 +1,14 @@
 package com.example.test1.ui.chat
 
+import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.test1.R
 import com.example.test1.data.api.FoodChatResponse
 import com.example.test1.data.api.GeminiService
 import com.example.test1.data.api.IngredientMacro
@@ -54,13 +56,17 @@ data class ChatUiState(
 )
 
 class ChatViewModel(
+    application: Application,
     private val foodRepository: FoodRepository,
     private val recipeRepository: RecipeRepository,
     private val geminiService: GeminiService,
     private val sharedDate: StateFlow<String>,
     private val chatMessageRepository: ChatMessageRepository,
     private val maxChatDays: Int = 365
-) : ViewModel() {
+) : AndroidViewModel(application) {
+
+    private fun str(resId: Int) = getApplication<Application>().getString(resId)
+    private fun str(resId: Int, vararg args: Any) = getApplication<Application>().getString(resId, *args)
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -75,13 +81,11 @@ class ChatViewModel(
     private val messageJson = Json { ignoreUnknownKeys = true }
 
     init {
-        // Borrar mensajes más antiguos que maxChatDays al iniciar
         viewModelScope.launch {
             val cutoff = LocalDate.now().minusDays(maxChatDays.toLong()).toString()
             chatMessageRepository.deleteOlderThan(cutoff)
         }
 
-        // Limpiar estado transitorio cuando cambia la fecha
         viewModelScope.launch {
             sharedDate.drop(1).collect {
                 pendingHistory.clear()
@@ -91,7 +95,6 @@ class ChatViewModel(
             }
         }
 
-        // Fuente de verdad: DB reactiva por fecha
         viewModelScope.launch {
             sharedDate.flatMapLatest { date ->
                 chatMessageRepository.getMessagesForDate(date)
@@ -103,7 +106,6 @@ class ChatViewModel(
         }
     }
 
-    // Conversión entidad → modelo UI
     private fun ChatMessageEntity.toChatMessage(): ChatMessage = ChatMessage(
         id = id,
         text = text,
@@ -115,7 +117,6 @@ class ChatViewModel(
         foodEntryId = foodEntryId
     )
 
-    // Conversión modelo UI → entidad
     private fun ChatMessage.toEntity(date: String): ChatMessageEntity = ChatMessageEntity(
         id = id,
         date = date,
@@ -169,8 +170,8 @@ class ChatViewModel(
 
         if (editingHistory.isEmpty()) {
             val orig = editingEntry.originalMacro
-            val ctx = "Tengo registrado \"${orig.name}\" (${orig.cal} kcal, ${orig.prot}g proteína, " +
-                "${orig.carb}g carbohidratos, ${orig.fat}g grasa). Quiero corregir: $text"
+            val ctx = "I have logged \"${orig.name}\" (${orig.cal} kcal, ${orig.prot}g protein, " +
+                "${orig.carb}g carbs, ${orig.fat}g fat). I want to correct: $text"
             editingHistory.add("user" to ctx)
         } else {
             editingHistory.add("user" to text)
@@ -216,7 +217,7 @@ class ChatViewModel(
                 )
                 val confirmMsg = ChatMessage(
                     id = System.currentTimeMillis(),
-                    text = "Registro actualizado ✓",
+                    text = str(R.string.vm_chat_entry_updated),
                     isUser = false
                 )
                 chatMessageRepository.insert(confirmMsg.toEntity(sharedDate.value))
@@ -248,7 +249,7 @@ class ChatViewModel(
             if (base64 == null) {
                 val errMsg = ChatMessage(
                     id = System.currentTimeMillis(),
-                    text = "No se pudo procesar la imagen.",
+                    text = str(R.string.vm_chat_image_failed),
                     isUser = false
                 )
                 chatMessageRepository.insert(errMsg.toEntity(sharedDate.value))
@@ -260,7 +261,7 @@ class ChatViewModel(
 
             val photoMsg = ChatMessage(
                 id = System.currentTimeMillis(),
-                text = "📷 Foto enviada",
+                text = str(R.string.chat_photo_label),
                 isUser = true,
                 isImageMessage = true
             )
@@ -280,7 +281,7 @@ class ChatViewModel(
                 resetConversation()
                 val aiMsg = ChatMessage(
                     id = System.currentTimeMillis(),
-                    text = "No detecté ningún alimento en la imagen. Intenta con otra foto.",
+                    text = str(R.string.vm_chat_no_food_in_image),
                     isUser = false
                 )
                 chatMessageRepository.insert(aiMsg.toEntity(sharedDate.value))
@@ -332,8 +333,8 @@ class ChatViewModel(
     private suspend fun handleError(e: Throwable) {
         resetConversation()
         val msg = when (e) {
-            is RateLimitException -> e.message!!
-            else -> "Error al procesar: ${e.message ?: "Inténtalo de nuevo"}"
+            is RateLimitException -> str(R.string.vm_chat_error_rate_limit)
+            else -> str(R.string.vm_chat_error_processing, e.message ?: str(R.string.vm_chat_error_retry))
         }
         val aiMsg = ChatMessage(id = System.currentTimeMillis(), text = msg, isUser = false)
         chatMessageRepository.insert(aiMsg.toEntity(sharedDate.value))
@@ -354,7 +355,7 @@ class ChatViewModel(
     fun discardEntry(entryId: Long, messageId: Long) {
         viewModelScope.launch {
             foodRepository.deleteById(entryId)
-            chatMessageRepository.updateMessage(messageId, "Registro descartado", null, null)
+            chatMessageRepository.updateMessage(messageId, str(R.string.vm_chat_entry_discarded), null, null)
         }
         _uiState.update { state ->
             state.copy(
@@ -391,7 +392,7 @@ class ChatViewModel(
         editingHistory.clear()
         val promptMsg = ChatMessage(
             id = System.currentTimeMillis(),
-            text = "¿Qué quieres corregir? Describe los cambios y los ajustaré.",
+            text = str(R.string.vm_chat_edit_prompt),
             isUser = false
         )
         viewModelScope.launch {
@@ -407,9 +408,9 @@ class ChatViewModel(
 
     private fun buildRecipeContext(): String =
         savedRecipes.value.takeIf { it.isNotEmpty() }?.let { list ->
-            "Recetas guardadas del usuario:\n" +
+            "User's saved recipes:\n" +
             list.joinToString("\n") { r ->
-                "- ${r.name}: ${r.kcalPerServing} kcal, ${r.protein}g prot, ${r.carbs}g carb, ${r.fat}g grasa"
+                "- ${r.name}: ${r.kcalPerServing} kcal, ${r.protein}g protein, ${r.carbs}g carbs, ${r.fat}g fat"
             }
         } ?: ""
 
@@ -437,6 +438,33 @@ class ChatViewModel(
         }
 
     fun clearDebugInfo() { _uiState.update { it.copy(debugInfo = null) } }
+
+    fun repeatEntry(macro: MacroResult) {
+        if (_uiState.value.isLoading) return
+        viewModelScope.launch {
+            val entryId = foodRepository.insert(
+                FoodEntryEntity(
+                    date = sharedDate.value,
+                    name = macro.name,
+                    kcal = macro.cal,
+                    protein = macro.prot,
+                    carbs = macro.carb,
+                    fat = macro.fat,
+                    description = str(R.string.vm_chat_repeated_desc, macro.name),
+                    ingredientsJson = macro.ingredients.takeIf { it.isNotEmpty() }
+                        ?.let { Json.encodeToString(it) }
+                )
+            )
+            val confirmMsg = ChatMessage(
+                id = System.currentTimeMillis(),
+                text = str(R.string.vm_chat_repeated, macro.name),
+                isUser = false,
+                macroResult = macro,
+                foodEntryId = entryId
+            )
+            chatMessageRepository.insert(confirmMsg.toEntity(sharedDate.value))
+        }
+    }
 
     fun saveAsRecipe(recipe: RecipeEntity) {
         viewModelScope.launch { recipeRepository.insert(recipe) }

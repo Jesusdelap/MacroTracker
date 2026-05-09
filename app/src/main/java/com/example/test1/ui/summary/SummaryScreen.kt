@@ -7,11 +7,14 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.Settings
@@ -21,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -30,9 +34,13 @@ import com.example.test1.data.db.entity.FoodEntryEntity
 import com.example.test1.ui.components.MacroPill
 import com.example.test1.ui.components.MacroProgressRow
 import com.example.test1.ui.theme.*
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
     val app = LocalContext.current.applicationContext as MacroApp
@@ -44,7 +52,33 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
     var contentVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { contentVisible = true }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    if (showDatePicker) {
+        val initialMillis = remember(selectedDate) {
+            LocalDate.parse(selectedDate).atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+        }
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { millis ->
+                        vm.goToDate(Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate())
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+            }
+        ) { DatePicker(state = pickerState) }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column(
                 modifier = Modifier
@@ -89,10 +123,11 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
         ) {
             item {
                 DateSelector(
-                    dateDisplay  = selectedDate.toDisplayDate(),
-                    canGoForward = true,
-                    onPrevious   = vm::goToPreviousDay,
-                    onNext       = vm::goToNextDay
+                    dateDisplay       = selectedDate.toDisplayDate(),
+                    canGoForward      = true,
+                    onPrevious        = vm::goToPreviousDay,
+                    onNext            = vm::goToNextDay,
+                    onOpenDatePicker  = { showDatePicker = true }
                 )
             }
 
@@ -127,7 +162,19 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
             item {
                 FoodEntriesSection(
                     entries  = summary.entries,
-                    onDelete = { vm.deleteEntry(it) }
+                    onDelete = { entry ->
+                        vm.deleteEntry(entry)
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message     = "\"${entry.name}\" eliminado",
+                                actionLabel = "Deshacer",
+                                duration    = SnackbarDuration.Short
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                vm.restoreEntry(entry)
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -141,17 +188,44 @@ private fun DateSelector(
     dateDisplay: String,
     canGoForward: Boolean,
     onPrevious: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onOpenDatePicker: () -> Unit
 ) {
+    var totalDrag by remember { mutableFloatStateOf(0f) }
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd    = { totalDrag = 0f },
+                    onDragCancel = { totalDrag = 0f },
+                    onHorizontalDrag = { _, amount ->
+                        totalDrag += amount
+                        if (totalDrag > 80f)  { totalDrag = 0f; onPrevious() }
+                        else if (totalDrag < -80f) { totalDrag = 0f; onNext() }
+                    }
+                )
+            },
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onPrevious) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Día anterior")
         }
-        Text(dateDisplay, style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier              = Modifier.clickable { onOpenDatePicker() },
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(dateDisplay, style = MaterialTheme.typography.titleMedium)
+            Icon(
+                Icons.Filled.DateRange,
+                contentDescription = "Seleccionar fecha",
+                modifier           = Modifier.size(14.dp),
+                tint               = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         IconButton(onClick = onNext, enabled = canGoForward) {
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Día siguiente")
         }
@@ -310,36 +384,16 @@ private fun FoodEntryRow(entry: FoodEntryEntity, onDelete: () -> Unit) {
         java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
             .format(java.util.Date(entry.timestamp))
     }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value == SwipeToDismissBoxValue.EndToStart) {
-                showDeleteConfirm = true
-            }
-            false
+                onDelete()
+                true
+            } else false
         },
         positionalThreshold = { it * 0.38f }
     )
-
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("¿Eliminar registro?") },
-            text  = { Text("Se eliminará \"${entry.name}\" de este día.") },
-            confirmButton = {
-                TextButton(
-                    onClick = { showDeleteConfirm = false; onDelete() },
-                    colors  = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) { Text("Eliminar") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
-            }
-        )
-    }
 
     SwipeToDismissBox(
         state                       = dismissState,

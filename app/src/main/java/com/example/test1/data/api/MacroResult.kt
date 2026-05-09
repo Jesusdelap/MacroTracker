@@ -18,7 +18,8 @@ data class MacroResult(
     val prot: Float,
     val carb: Float,
     val fat: Float,
-    val ingredients: List<IngredientMacro> = emptyList()
+    val ingredients: List<IngredientMacro> = emptyList(),
+    val fromRecipe: String? = null
 )
 
 @Serializable
@@ -30,10 +31,11 @@ data class FoodChatResponse(
     val fat: Float? = null,
     val question: String? = null,
     val error: String? = null,
-    val ingredients: List<IngredientMacro>? = null
+    val ingredients: List<IngredientMacro>? = null,
+    val fromRecipe: String? = null
 ) {
     val asMacroResult: MacroResult?
         get() = if (cal != null && prot != null && carb != null && fat != null)
-            MacroResult(name ?: "", cal, prot, carb, fat, ingredients ?: emptyList())
+            MacroResult(name ?: "", cal, prot, carb, fat, ingredients ?: emptyList(), fromRecipe)
         else null
 }

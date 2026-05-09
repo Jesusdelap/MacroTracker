@@ -43,6 +43,10 @@ class RecipeViewModel(
         viewModelScope.launch { recipeRepository.delete(recipe) }
     }
 
+    fun toggleFavorite(recipe: RecipeEntity) {
+        viewModelScope.launch { recipeRepository.update(recipe.copy(isFavorite = !recipe.isFavorite)) }
+    }
+
     fun addToToday(recipe: RecipeEntity) {
         viewModelScope.launch {
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
@@ -57,6 +61,7 @@ class RecipeViewModel(
                     description = "Receta: ${recipe.name}"
                 )
             )
+            recipeRepository.update(recipe.copy(usageCount = recipe.usageCount + 1, lastUsedAt = System.currentTimeMillis()))
         }
     }
 
@@ -75,6 +80,7 @@ class RecipeViewModel(
                     description = "Receta: ${recipe.name} (${grams.toInt()}g)"
                 )
             )
+            recipeRepository.update(recipe.copy(usageCount = recipe.usageCount + 1, lastUsedAt = System.currentTimeMillis()))
         }
     }
 }

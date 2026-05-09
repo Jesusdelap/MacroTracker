@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +21,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.KeyboardType
+import kotlin.math.abs
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -37,6 +39,14 @@ fun SettingsScreen(onBack: () -> Unit) {
     var protein by remember(goal.protein)  { mutableStateOf(goal.protein.toString()) }
     var carbs   by remember(goal.carbs)    { mutableStateOf(goal.carbs.toString()) }
     var fat     by remember(goal.fat)      { mutableStateOf(goal.fat.toString()) }
+
+    val calculatedGoalKcal by remember {
+        derivedStateOf {
+            (protein.toIntOrNull() ?: 0) * 4 +
+            (carbs.toIntOrNull()   ?: 0) * 4 +
+            (fat.toIntOrNull()     ?: 0) * 9
+        }
+    }
 
     var showSavedSnackbar by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -109,6 +119,42 @@ fun SettingsScreen(onBack: () -> Unit) {
                 GoalInputRow("Proteína",      protein, { protein = it }, "g",    ProteinColor)
                 GoalInputRow("Carbohidratos", carbs,   { carbs = it },   "g",    CarbColor)
                 GoalInputRow("Grasas",        fat,     { fat = it },     "g",    FatColor)
+
+                if (calculatedGoalKcal > 0) {
+                    val kcalEntered = kcal.toIntOrNull()
+                    val hasMismatch = kcalEntered != null &&
+                        abs(kcalEntered - calculatedGoalKcal) > calculatedGoalKcal * 0.10f
+                    Surface(
+                        color = if (hasMismatch) FatColor.copy(alpha = 0.12f)
+                                else             MaterialTheme.colorScheme.surfaceVariant,
+                        shape = AppShapeSm
+                    ) {
+                        Row(
+                            modifier              = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            verticalAlignment     = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Filled.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint     = if (hasMismatch) FatColor
+                                           else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                if (hasMismatch)
+                                    "Las macros calculan $calculatedGoalKcal kcal (objetivo: ${kcalEntered} kcal)"
+                                else
+                                    "Las macros equivalen a $calculatedGoalKcal kcal",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (hasMismatch) MaterialTheme.colorScheme.onSurface
+                                        else             MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
 
             Button(

@@ -44,6 +44,8 @@ import com.example.test1.data.api.MacroResult
 import com.example.test1.data.db.entity.RecipeEntity
 import com.example.test1.ui.components.MacroPill
 import com.example.test1.ui.theme.*
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.text.SimpleDateFormat
@@ -51,7 +53,7 @@ import java.util.*
 
 private data class AiMsg(val text: String, val isUser: Boolean, val isInitial: Boolean = false)
 
-private const val RECIPE_JSON_MARKER = "RECETA_JSON:"
+private const val RECIPE_JSON_MARKER = "RECIPE_JSON:"
 private val recipeJson = Json { ignoreUnknownKeys = true }
 
 private fun extractRecipe(response: String): MacroResult? {
@@ -85,7 +87,11 @@ fun RecipeScreen() {
     var showAddDialog  by remember { mutableStateOf(false) }
     var editingRecipe  by remember { mutableStateOf<RecipeEntity?>(null) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column(
                 modifier = Modifier
@@ -170,11 +176,24 @@ fun RecipeScreen() {
                 ) {
                     items(uiState.recipes, key = { it.id }) { recipe ->
                         RecipeCard(
-                            recipe              = recipe,
-                            onAddToToday        = { vm.addToToday(recipe) },
+                            recipe                = recipe,
+                            onAddToToday          = { vm.addToToday(recipe) },
                             onAddToTodayWithGrams = { grams -> vm.addToTodayWithGrams(recipe, grams) },
-                            onDelete            = { vm.deleteRecipe(recipe) },
-                            onEdit              = { editingRecipe = recipe }
+                            onToggleFavorite      = { vm.toggleFavorite(recipe) },
+                            onDelete = {
+                                vm.deleteRecipe(recipe)
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message     = "\"${recipe.name}\" eliminada",
+                                        actionLabel = "Deshacer",
+                                        duration    = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        vm.addRecipe(recipe.copy(id = 0))
+                                    }
+                                }
+                            },
+                            onEdit = { editingRecipe = recipe }
                         )
                     }
                 }
@@ -245,39 +264,21 @@ private fun RecipeCard(
     recipe: RecipeEntity,
     onAddToToday: () -> Unit,
     onAddToTodayWithGrams: (Float) -> Unit,
+    onToggleFavorite: () -> Unit,
     onDelete: () -> Unit,
     onEdit: () -> Unit
 ) {
     val dateStr = remember(recipe.createdAt) {
         SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(recipe.createdAt))
     }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var showWeightPicker  by remember { mutableStateOf(false) }
+    var showWeightPicker by remember { mutableStateOf(false) }
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) showDeleteConfirm = true
-            false
+            if (value == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false
         },
         positionalThreshold = { it * 0.38f }
     )
-
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("¿Eliminar receta?") },
-            text  = { Text("Se eliminará \"${recipe.name}\" del recetario.") },
-            confirmButton = {
-                TextButton(
-                    onClick = { showDeleteConfirm = false; onDelete() },
-                    colors  = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Eliminar") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
-            }
-        )
-    }
 
     if (showWeightPicker) {
         WeightPickerDialog(
@@ -344,18 +345,35 @@ private fun RecipeCard(
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.macroColors.calories
                             )
+                            val subtitle = buildString {
+                                if (!recipe.isPer100g) append("· ${recipe.servings.toInt()} rac. ")
+                                append("· $dateStr")
+                                if (recipe.usageCount > 0) append(" · ${recipe.usageCount}×")
+                            }
                             Text(
-                                text  = if (recipe.isPer100g) "· $dateStr" else "· ${recipe.servings.toInt()} rac. · $dateStr",
+                                text  = subtitle,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TextTertiary
                             )
                         }
                     }
-                    // Edit + Add buttons
+                    // Favorite + Edit + Add buttons
                     Row(
                         verticalAlignment     = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                     ) {
+                        IconButton(
+                            onClick  = onToggleFavorite,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Star,
+                                contentDescription = if (recipe.isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                                modifier = Modifier.size(16.dp),
+                                tint     = if (recipe.isFavorite) MaterialTheme.colorScheme.primary
+                                           else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                        }
                         IconButton(
                             onClick  = onEdit,
                             modifier = Modifier.size(32.dp)
@@ -703,6 +721,28 @@ private fun ManualTab(
     var carbs100 by remember { mutableStateOf(if (startAs100g) editingRecipe?.carbs?.toString() ?: "" else "") }
     var fat100   by remember { mutableStateOf(if (startAs100g) editingRecipe?.fat?.toString() ?: "" else "") }
 
+    val calculatedKcal by remember {
+        derivedStateOf {
+            ((protein.toFloatOrNull() ?: 0f) * 4f +
+             (carbs.toFloatOrNull()   ?: 0f) * 4f +
+             (fat.toFloatOrNull()     ?: 0f) * 9f).roundToInt()
+        }
+    }
+    val calculatedKcal100 by remember {
+        derivedStateOf {
+            ((prot100.toFloatOrNull()  ?: 0f) * 4f +
+             (carbs100.toFloatOrNull() ?: 0f) * 4f +
+             (fat100.toFloatOrNull()   ?: 0f) * 9f).roundToInt()
+        }
+    }
+
+    LaunchedEffect(calculatedKcal) {
+        if (calculatedKcal > 0) kcal = calculatedKcal.toString()
+    }
+    LaunchedEffect(calculatedKcal100) {
+        if (calculatedKcal100 > 0) kcal100 = calculatedKcal100.toString()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -759,15 +799,57 @@ private fun ManualTab(
         Spacer(Modifier.height(Spacing.lg))
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             if (inputMode == InputMode.PorRacion) {
-                MacroInputRow("Calorías",      kcal,    { kcal = it },    "kcal", required = true)
                 MacroInputRow("Proteína",      protein, { protein = it }, "g",    required = true)
                 MacroInputRow("Carbohidratos", carbs,   { carbs = it },   "g",    required = true)
                 MacroInputRow("Grasas",        fat,     { fat = it },     "g",    required = true)
+                MacroInputRow("Calorías",      kcal,    { kcal = it },    "kcal", required = true)
+                val kcalEntered = kcal.toIntOrNull()
+                if (kcalEntered != null && calculatedKcal > 0 &&
+                    abs(kcalEntered - calculatedKcal) > calculatedKcal * 0.10f) {
+                    Surface(color = FatColor.copy(alpha = 0.12f), shape = AppShapeSm) {
+                        Row(
+                            modifier              = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            verticalAlignment     = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.Warning, contentDescription = null,
+                                modifier = Modifier.size(14.dp), tint = FatColor)
+                            Text(
+                                "Las macros calculan $calculatedKcal kcal",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
             } else {
-                MacroInputRow("Calorías",      kcal100,  { kcal100 = it },  "kcal", required = true)
                 MacroInputRow("Proteína",      prot100,  { prot100 = it },  "g",    required = true)
                 MacroInputRow("Carbohidratos", carbs100, { carbs100 = it }, "g",    required = true)
                 MacroInputRow("Grasas",        fat100,   { fat100 = it },   "g",    required = true)
+                MacroInputRow("Calorías",      kcal100,  { kcal100 = it },  "kcal", required = true)
+                val kcal100Entered = kcal100.toIntOrNull()
+                if (kcal100Entered != null && calculatedKcal100 > 0 &&
+                    abs(kcal100Entered - calculatedKcal100) > calculatedKcal100 * 0.10f) {
+                    Surface(color = FatColor.copy(alpha = 0.12f), shape = AppShapeSm) {
+                        Row(
+                            modifier              = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            verticalAlignment     = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.Warning, contentDescription = null,
+                                modifier = Modifier.size(14.dp), tint = FatColor)
+                            Text(
+                                "Las macros calculan $calculatedKcal100 kcal",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
             }
         }
 

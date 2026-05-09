@@ -3,25 +3,27 @@ package com.example.test1.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import com.example.test1.R
 
 enum class MacroType { CALORIES, PROTEIN, CARBS, FAT }
 
 // ── Labels de pantalla ────────────────────────────────────────────────────────
 
-/** Etiqueta corta para pills y barras de progreso */
+@Composable
 fun MacroType.label(): String = when (this) {
-    MacroType.CALORIES -> "KCAL"
-    MacroType.PROTEIN  -> "PROT"
-    MacroType.CARBS    -> "CARB"
-    MacroType.FAT      -> "GRASA"
+    MacroType.CALORIES -> stringResource(R.string.macro_label_kcal)
+    MacroType.PROTEIN  -> stringResource(R.string.macro_label_protein)
+    MacroType.CARBS    -> stringResource(R.string.macro_label_carbs)
+    MacroType.FAT      -> stringResource(R.string.macro_label_fat)
 }
 
-/** Nombre completo para secciones y accesibilidad */
+@Composable
 fun MacroType.fullName(): String = when (this) {
-    MacroType.CALORIES -> "Calorías"
-    MacroType.PROTEIN  -> "Proteína"
-    MacroType.CARBS    -> "Carbohidratos"
-    MacroType.FAT      -> "Grasas"
+    MacroType.CALORIES -> stringResource(R.string.macro_fullname_calories)
+    MacroType.PROTEIN  -> stringResource(R.string.macro_fullname_protein)
+    MacroType.CARBS    -> stringResource(R.string.macro_fullname_carbs)
+    MacroType.FAT      -> stringResource(R.string.macro_fullname_fat)
 }
 
 /** Unidad de medida */
