@@ -13,7 +13,7 @@ import java.time.LocalDate
 class MacroApp : Application() {
     val database by lazy { AppDatabase.getInstance(this) }
     val foodRepository by lazy { FoodRepository(database.foodEntryDao()) }
-    val recipeRepository by lazy { RecipeRepository(database.recipeDao()) }
+    val recipeRepository by lazy { RecipeRepository(database.foodItemDao()) }
     val goalRepository by lazy { GoalRepository(database.dailyGoalDao()) }
     val chatMessageRepository by lazy { ChatMessageRepository(database.chatMessageDao()) }
     val geminiService by lazy { GeminiService() }

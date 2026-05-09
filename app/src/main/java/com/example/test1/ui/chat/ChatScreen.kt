@@ -28,7 +28,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Warning
-import com.example.test1.data.db.entity.RecipeEntity
+import com.example.test1.data.db.entity.FoodItemEntity
 import com.example.test1.ui.recipe.RecipeCreationDialog
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -384,7 +384,7 @@ private fun ChatBubble(
     msg: ChatMessage,
     actionsEnabled: Boolean,
     haptics: HapticFeedback,
-    onSaveAsRecipe: (RecipeEntity) -> Unit,
+    onSaveAsRecipe: (FoodItemEntity) -> Unit,
     onDiscard: () -> Unit,
     onEditManually: (MacroResult) -> Unit,
     onStartAIEdit: () -> Unit,
@@ -850,7 +850,7 @@ private fun IngredientEditorCard(
 }
 
 @Composable
-private fun SaveAsRecipeButton(macro: MacroResult, onSave: (RecipeEntity) -> Unit) {
+private fun SaveAsRecipeButton(macro: MacroResult, onSave: (FoodItemEntity) -> Unit) {
     var showDialog by remember { mutableStateOf(false) }
     val app = LocalContext.current.applicationContext as MacroApp
 

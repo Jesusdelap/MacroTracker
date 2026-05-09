@@ -45,7 +45,9 @@ import com.example.test1.R
 import com.example.test1.data.api.GeminiService
 import com.example.test1.data.api.MacroResult
 import com.example.test1.data.api.RateLimitException
-import com.example.test1.data.db.entity.RecipeEntity
+import com.example.test1.data.db.entity.FoodItemEntity
+import com.example.test1.data.db.entity.ServingMode
+import com.example.test1.data.db.entity.isPer100g
 import com.example.test1.ui.components.MacroPill
 import com.example.test1.ui.theme.*
 import kotlin.math.abs
@@ -89,7 +91,7 @@ fun RecipeScreen() {
     }
     val uiState by vm.uiState.collectAsState()
     var showAddDialog  by remember { mutableStateOf(false) }
-    var editingRecipe  by remember { mutableStateOf<RecipeEntity?>(null) }
+    var editingRecipe  by remember { mutableStateOf<FoodItemEntity?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -267,7 +269,7 @@ private fun EmptyState(hasSearch: Boolean, query: String) {
 
 @Composable
 private fun RecipeCard(
-    recipe: RecipeEntity,
+    recipe: FoodItemEntity,
     onAddToToday: () -> Unit,
     onAddToTodayWithGrams: (Float) -> Unit,
     onToggleFavorite: () -> Unit,
@@ -443,7 +445,7 @@ private fun RecipeCard(
 
 @Composable
 private fun WeightPickerDialog(
-    recipe: RecipeEntity,
+    recipe: FoodItemEntity,
     onConfirm: (Float) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -504,8 +506,8 @@ private fun WeightPickerDialog(
 internal fun RecipeCreationDialog(
     geminiService: GeminiService,
     initialValues: MacroResult? = null,
-    editingRecipe: RecipeEntity? = null,
-    onSave: (RecipeEntity) -> Unit,
+    editingRecipe: FoodItemEntity? = null,
+    onSave: (FoodItemEntity) -> Unit,
     onDismiss: () -> Unit
 ) {
     val isEditing    = editingRecipe != null
@@ -691,8 +693,8 @@ private fun MacroInputRow(
 @Composable
 private fun ManualTab(
     initialValues: MacroResult? = null,
-    editingRecipe: RecipeEntity? = null,
-    onSave: (RecipeEntity) -> Unit
+    editingRecipe: FoodItemEntity? = null,
+    onSave: (FoodItemEntity) -> Unit
 ) {
     val haptics = LocalHapticFeedback.current
 
@@ -874,7 +876,7 @@ private fun ManualTab(
                     val p = protein.toFloatOrNull() ?: return@Button
                     val c = carbs.toFloatOrNull() ?: return@Button
                     val f = fat.toFloatOrNull() ?: return@Button
-                    onSave(RecipeEntity(
+                    onSave(FoodItemEntity(
                         id             = editingRecipe?.id ?: 0,
                         name           = name.trim(),
                         servings       = servings.toFloatOrNull() ?: 1f,
@@ -883,15 +885,18 @@ private fun ManualTab(
                         carbs          = c,
                         fat            = f,
                         ingredients    = notes.trim(),
-                        isPer100g      = false,
-                        createdAt      = editingRecipe?.createdAt ?: System.currentTimeMillis()
+                        servingMode    = ServingMode.PER_SERVING.name,
+                        createdAt      = editingRecipe?.createdAt ?: System.currentTimeMillis(),
+                        isFavorite     = editingRecipe?.isFavorite ?: false,
+                        usageCount     = editingRecipe?.usageCount ?: 0,
+                        lastUsedAt     = editingRecipe?.lastUsedAt
                     ))
                 } else {
                     val k = kcal100.toIntOrNull() ?: return@Button
                     val p = prot100.toFloatOrNull() ?: return@Button
                     val c = carbs100.toFloatOrNull() ?: return@Button
                     val f = fat100.toFloatOrNull() ?: return@Button
-                    onSave(RecipeEntity(
+                    onSave(FoodItemEntity(
                         id             = editingRecipe?.id ?: 0,
                         name           = name.trim(),
                         servings       = 1f,
@@ -900,8 +905,11 @@ private fun ManualTab(
                         carbs          = c,
                         fat            = f,
                         ingredients    = notes.trim(),
-                        isPer100g      = true,
-                        createdAt      = editingRecipe?.createdAt ?: System.currentTimeMillis()
+                        servingMode    = ServingMode.PER_100G.name,
+                        createdAt      = editingRecipe?.createdAt ?: System.currentTimeMillis(),
+                        isFavorite     = editingRecipe?.isFavorite ?: false,
+                        usageCount     = editingRecipe?.usageCount ?: 0,
+                        lastUsedAt     = editingRecipe?.lastUsedAt
                     ))
                 }
             }
@@ -917,7 +925,7 @@ private fun ManualTab(
 // ─── AI tab ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) {
+private fun AiTab(geminiService: GeminiService, onSave: (FoodItemEntity) -> Unit) {
     val greeting        = stringResource(R.string.recipe_ai_greeting)
     val rateLimitMsg    = stringResource(R.string.vm_chat_error_rate_limit)
     val aiErrorFmt      = stringResource(R.string.recipe_ai_error)
@@ -1057,7 +1065,7 @@ private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) 
                             onClick  = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 val finalName = aiName.trim().ifBlank { recipe.name }
-                                onSave(RecipeEntity(
+                                onSave(FoodItemEntity(
                                     name           = finalName,
                                     servings       = 1f,
                                     kcalPerServing = recipe.cal,
@@ -1065,7 +1073,7 @@ private fun AiTab(geminiService: GeminiService, onSave: (RecipeEntity) -> Unit) 
                                     carbs          = recipe.carb,
                                     fat            = recipe.fat,
                                     ingredients    = aiNotes.trim(),
-                                    isPer100g      = aiPer100g
+                                    servingMode    = if (aiPer100g) ServingMode.PER_100G.name else ServingMode.PER_SERVING.name
                                 ))
                             }
                         ) {

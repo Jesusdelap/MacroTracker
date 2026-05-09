@@ -16,7 +16,7 @@ import com.example.test1.data.api.MacroResult
 import com.example.test1.data.api.RateLimitException
 import com.example.test1.data.db.entity.ChatMessageEntity
 import com.example.test1.data.db.entity.FoodEntryEntity
-import com.example.test1.data.db.entity.RecipeEntity
+import com.example.test1.data.db.entity.FoodItemEntity
 import com.example.test1.data.repository.ChatMessageRepository
 import com.example.test1.data.repository.FoodRepository
 import com.example.test1.data.repository.RecipeRepository
@@ -466,7 +466,7 @@ class ChatViewModel(
         }
     }
 
-    fun saveAsRecipe(recipe: RecipeEntity) {
+    fun saveAsRecipe(recipe: FoodItemEntity) {
         viewModelScope.launch { recipeRepository.insert(recipe) }
     }
 }

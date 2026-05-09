@@ -3,7 +3,7 @@ package com.example.test1.ui.recipe
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.test1.data.db.entity.FoodEntryEntity
-import com.example.test1.data.db.entity.RecipeEntity
+import com.example.test1.data.db.entity.FoodItemEntity
 import com.example.test1.data.repository.FoodRepository
 import com.example.test1.data.repository.RecipeRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -13,7 +13,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 data class RecipeUiState(
-    val recipes: List<RecipeEntity> = emptyList(),
+    val recipes: List<FoodItemEntity> = emptyList(),
     val searchQuery: String = ""
 )
 
@@ -31,23 +31,23 @@ class RecipeViewModel(
 
     fun onSearchChange(query: String) { _query.value = query }
 
-    fun addRecipe(recipe: RecipeEntity) {
+    fun addRecipe(recipe: FoodItemEntity) {
         viewModelScope.launch { recipeRepository.insert(recipe) }
     }
 
-    fun updateRecipe(recipe: RecipeEntity) {
+    fun updateRecipe(recipe: FoodItemEntity) {
         viewModelScope.launch { recipeRepository.update(recipe) }
     }
 
-    fun deleteRecipe(recipe: RecipeEntity) {
+    fun deleteRecipe(recipe: FoodItemEntity) {
         viewModelScope.launch { recipeRepository.delete(recipe) }
     }
 
-    fun toggleFavorite(recipe: RecipeEntity) {
+    fun toggleFavorite(recipe: FoodItemEntity) {
         viewModelScope.launch { recipeRepository.update(recipe.copy(isFavorite = !recipe.isFavorite)) }
     }
 
-    fun addToToday(recipe: RecipeEntity) {
+    fun addToToday(recipe: FoodItemEntity) {
         viewModelScope.launch {
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             foodRepository.insert(
@@ -65,7 +65,7 @@ class RecipeViewModel(
         }
     }
 
-    fun addToTodayWithGrams(recipe: RecipeEntity, grams: Float) {
+    fun addToTodayWithGrams(recipe: FoodItemEntity, grams: Float) {
         viewModelScope.launch {
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             val ratio = grams / 100f
