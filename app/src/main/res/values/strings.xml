@@ -33,13 +33,20 @@
     <!-- Macro field labels -->
     <string name="macro_field_protein">Protein (g)</string>
     <string name="macro_field_carbs">Carbs (g)</string>
+    <string name="macro_field_carbs_abbr">Carbs (g)</string>
     <string name="macro_field_fat">Fat (g)</string>
+    <string name="macro_field_kcal">kcal</string>
     <string name="macro_field_protein_short">Prot</string>
     <string name="macro_field_carbs_short">Carb</string>
     <string name="macro_field_fat_short">Fat</string>
     <string name="macro_warning_kcal">Macros calculate %d kcal</string>
 
     <!-- Chat screen -->
+    <string name="chat_cd_photo">Photo</string>
+    <string name="chat_cd_send">Send</string>
+    <string name="chat_total_label">TOTAL</string>
+    <string name="chat_ingredient_default">Ingredient %d</string>
+    <string name="chat_ingredient_label">Ingredient</string>
     <string name="chat_title">Log</string>
     <string name="chat_input_hint">Describe your meal…</string>
     <string name="chat_input_hint_edit">Describe the correction…</string>
@@ -90,6 +97,9 @@
     <string name="recipe_empty_message">Create your first recipe by tapping the button</string>
     <string name="recipe_no_results">No results for \"%s\"</string>
     <string name="recipe_per_100g_badge">per 100g</string>
+    <string name="recipe_per_100g_suffix">/ 100g</string>
+    <string name="recipe_serving_unit">srv.</string>
+    <string name="recipe_notes_ingredients_label">Notes / Ingredients</string>
     <string name="recipe_favorite_add">Add to favorites</string>
     <string name="recipe_favorite_remove">Remove from favorites</string>
     <string name="recipe_deleted">\"%s\" deleted</string>

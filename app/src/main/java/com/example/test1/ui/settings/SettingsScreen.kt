@@ -24,8 +24,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import kotlin.math.abs
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.test1.MacroApp
+import com.example.test1.R
 import com.example.test1.ui.theme.*
 
 @Composable
@@ -52,8 +54,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     val snackbarHostState = remember { SnackbarHostState() }
 
     if (showSavedSnackbar) {
+        val savedText = stringResource(R.string.settings_saved)
         LaunchedEffect(Unit) {
-            snackbarHostState.showSnackbar("Objetivos guardados")
+            snackbarHostState.showSnackbar(savedText)
             showSavedSnackbar = false
         }
     }
@@ -76,12 +79,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
+                            contentDescription = stringResource(R.string.settings_back_cd),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     Text(
-                        "Objetivos diarios",
+                        stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onBackground
                     )
@@ -103,22 +106,22 @@ fun SettingsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(Spacing.xl)
         ) {
             Text(
-                "Configura tus metas nutricionales diarias",
+                stringResource(R.string.settings_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             // ── OBJETIVOS DIARIOS ─────────────────────────────────────────
             Text(
-                "OBJETIVOS DIARIOS",
+                stringResource(R.string.settings_section_goals),
                 style = MaterialTheme.typography.labelMedium,
                 color = TextTertiary
             )
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                GoalInputRow("Calorías",      kcal,    { kcal = it },    "kcal", CalorieColor)
-                GoalInputRow("Proteína",      protein, { protein = it }, "g",    ProteinColor)
-                GoalInputRow("Carbohidratos", carbs,   { carbs = it },   "g",    CarbColor)
-                GoalInputRow("Grasas",        fat,     { fat = it },     "g",    FatColor)
+                GoalInputRow(stringResource(R.string.macro_fullname_calories), kcal,    { kcal = it },    "kcal", CalorieColor)
+                GoalInputRow(stringResource(R.string.macro_fullname_protein),  protein, { protein = it }, "g",    ProteinColor)
+                GoalInputRow(stringResource(R.string.macro_fullname_carbs),    carbs,   { carbs = it },   "g",    CarbColor)
+                GoalInputRow(stringResource(R.string.macro_fullname_fat),      fat,     { fat = it },     "g",    FatColor)
 
                 if (calculatedGoalKcal > 0) {
                     val kcalEntered = kcal.toIntOrNull()
@@ -145,9 +148,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                             )
                             Text(
                                 if (hasMismatch)
-                                    "Las macros calculan $calculatedGoalKcal kcal (objetivo: ${kcalEntered} kcal)"
+                                    stringResource(R.string.settings_macros_mismatch, calculatedGoalKcal, kcalEntered!!)
                                 else
-                                    "Las macros equivalen a $calculatedGoalKcal kcal",
+                                    stringResource(R.string.settings_macros_equivalent, calculatedGoalKcal),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (hasMismatch) MaterialTheme.colorScheme.onSurface
                                         else             MaterialTheme.colorScheme.onSurfaceVariant
@@ -172,7 +175,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     showSavedSnackbar = true
                 }
             ) {
-                Text("Guardar objetivos", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.settings_save), style = MaterialTheme.typography.labelLarge)
             }
         }
     }

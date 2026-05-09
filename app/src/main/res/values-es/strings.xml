@@ -33,13 +33,20 @@
     <!-- Macro field labels -->
     <string name="macro_field_protein">Proteína (g)</string>
     <string name="macro_field_carbs">Carbohidratos (g)</string>
+    <string name="macro_field_carbs_abbr">Carbohid. (g)</string>
     <string name="macro_field_fat">Grasas (g)</string>
+    <string name="macro_field_kcal">kcal</string>
     <string name="macro_field_protein_short">Prot</string>
     <string name="macro_field_carbs_short">Carb</string>
     <string name="macro_field_fat_short">Gras</string>
     <string name="macro_warning_kcal">Las macros calculan %d kcal</string>
 
     <!-- Chat screen -->
+    <string name="chat_cd_photo">Foto</string>
+    <string name="chat_cd_send">Enviar</string>
+    <string name="chat_total_label">TOTAL</string>
+    <string name="chat_ingredient_default">Ingrediente %d</string>
+    <string name="chat_ingredient_label">Ingrediente</string>
     <string name="chat_title">Registro</string>
     <string name="chat_input_hint">Describe tu comida…</string>
     <string name="chat_input_hint_edit">Describe la corrección…</string>
@@ -90,6 +97,9 @@
     <string name="recipe_empty_message">Crea tu primera receta pulsando el botón</string>
     <string name="recipe_no_results">Sin resultados para \"%s\"</string>
     <string name="recipe_per_100g_badge">por 100g</string>
+    <string name="recipe_per_100g_suffix">/ 100g</string>
+    <string name="recipe_serving_unit">rac.</string>
+    <string name="recipe_notes_ingredients_label">Notas / Ingredientes</string>
     <string name="recipe_favorite_add">Añadir a favoritos</string>
     <string name="recipe_favorite_remove">Quitar de favoritos</string>
     <string name="recipe_deleted">\"%s\" eliminada</string>

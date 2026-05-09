@@ -24,12 +24,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import android.content.Context
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.test1.MacroApp
+import com.example.test1.R
 import com.example.test1.data.db.entity.FoodEntryEntity
 import com.example.test1.ui.components.MacroPill
 import com.example.test1.ui.components.MacroProgressRow
@@ -52,9 +55,12 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
     var contentVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { contentVisible = true }
 
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    var showDatePicker by remember { mutableStateOf(false) }
+    val snackbarHostState  = remember { SnackbarHostState() }
+    val scope              = rememberCoroutineScope()
+    val entryDeletedFmt    = stringResource(R.string.summary_entry_deleted)
+    val undoLabel          = stringResource(R.string.action_undo)
+    val context            = LocalContext.current
+    var showDatePicker     by remember { mutableStateOf(false) }
 
     if (showDatePicker) {
         val initialMillis = remember(selectedDate) {
@@ -69,10 +75,10 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
                         vm.goToDate(Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate())
                     }
                     showDatePicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.action_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         ) { DatePicker(state = pickerState) }
     }
@@ -94,7 +100,7 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Resumen",
+                        stringResource(R.string.summary_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.weight(1f)
@@ -102,7 +108,7 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(
                             Icons.Filled.Settings,
-                            contentDescription = "Ajustes",
+                            contentDescription = stringResource(R.string.summary_settings_cd),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -123,7 +129,7 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
         ) {
             item {
                 DateSelector(
-                    dateDisplay       = selectedDate.toDisplayDate(),
+                    dateDisplay       = selectedDate.toDisplayDate(context),
                     canGoForward      = true,
                     onPrevious        = vm::goToPreviousDay,
                     onNext            = vm::goToNextDay,
@@ -166,8 +172,8 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
                         vm.deleteEntry(entry)
                         scope.launch {
                             val result = snackbarHostState.showSnackbar(
-                                message     = "\"${entry.name}\" eliminado",
-                                actionLabel = "Deshacer",
+                                message     = String.format(entryDeletedFmt, entry.name),
+                                actionLabel = undoLabel,
                                 duration    = SnackbarDuration.Short
                             )
                             if (result == SnackbarResult.ActionPerformed) {
@@ -211,7 +217,7 @@ private fun DateSelector(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onPrevious) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Día anterior")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.summary_prev_day_cd))
         }
         Row(
             modifier              = Modifier.clickable { onOpenDatePicker() },
@@ -221,13 +227,13 @@ private fun DateSelector(
             Text(dateDisplay, style = MaterialTheme.typography.titleMedium)
             Icon(
                 Icons.Filled.DateRange,
-                contentDescription = "Seleccionar fecha",
+                contentDescription = stringResource(R.string.summary_select_date_cd),
                 modifier           = Modifier.size(14.dp),
                 tint               = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         IconButton(onClick = onNext, enabled = canGoForward) {
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Día siguiente")
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.summary_next_day_cd))
         }
     }
 }
@@ -262,7 +268,7 @@ private fun CaloriesSummaryCard(totalKcal: Int, goalKcal: Int) {
         Column {
             // Línea 1: etiqueta
             Text(
-                text  = "RESTANTES",
+                text  = stringResource(R.string.summary_remaining),
                 style = MaterialTheme.typography.labelMedium,
                 color = TextTertiary
             )
@@ -310,7 +316,7 @@ private fun CaloriesSummaryCard(totalKcal: Int, goalKcal: Int) {
 
             // Línea 4: resumen textual
             Text(
-                text  = "$totalKcal de $goalKcal kcal consumidas",
+                text  = stringResource(R.string.summary_kcal_consumed, totalKcal, goalKcal),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFeatureSettings = FontFeatureTnum
                 ),
@@ -337,7 +343,7 @@ private fun MacronutrientsCard(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
-                text  = "MACRONUTRIENTES",
+                text  = stringResource(R.string.summary_macronutrients),
                 style = MaterialTheme.typography.labelMedium,
                 color = TextTertiary
             )
@@ -357,7 +363,7 @@ private fun FoodEntriesSection(
 ) {
     Column {
         Text(
-            text     = "COMIDAS REGISTRADAS  ${entries.size}",
+            text     = stringResource(R.string.summary_meals_title, entries.size),
             style    = MaterialTheme.typography.labelMedium,
             color    = TextTertiary,
             modifier = Modifier.padding(bottom = Spacing.lg)
@@ -416,7 +422,7 @@ private fun FoodEntryRow(entry: FoodEntryEntity, onDelete: () -> Unit) {
             ) {
                 Icon(
                     imageVector        = Icons.Filled.Delete,
-                    contentDescription = "Eliminar",
+                    contentDescription = stringResource(R.string.summary_delete_cd),
                     tint               = MaterialTheme.colorScheme.onErrorContainer,
                     modifier           = Modifier.size(20.dp)
                 )
@@ -503,12 +509,12 @@ private fun FoodEntryEmptyState(onNavigateToChat: (() -> Unit)? = null) {
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             Text(
-                text  = "Sin comidas registradas hoy",
+                text  = stringResource(R.string.summary_empty_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text  = "Empieza añadiendo tu primera comida desde Registro",
+                text  = stringResource(R.string.summary_empty_message),
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextTertiary
             )
@@ -516,7 +522,7 @@ private fun FoodEntryEmptyState(onNavigateToChat: (() -> Unit)? = null) {
         if (onNavigateToChat != null) {
             TextButton(onClick = onNavigateToChat) {
                 Text(
-                    text  = "Ir a Registro →",
+                    text  = stringResource(R.string.summary_go_to_log),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -527,13 +533,13 @@ private fun FoodEntryEmptyState(onNavigateToChat: (() -> Unit)? = null) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-private fun String.toDisplayDate(): String {
+private fun String.toDisplayDate(context: Context): String {
     val today = LocalDate.now()
     val date  = LocalDate.parse(this)
     return when {
-        date == today              -> "Hoy"
-        date == today.minusDays(1) -> "Ayer"
-        date == today.plusDays(1)  -> "Mañana"
+        date == today              -> context.getString(R.string.date_today)
+        date == today.minusDays(1) -> context.getString(R.string.date_yesterday)
+        date == today.plusDays(1)  -> context.getString(R.string.date_tomorrow)
         else -> date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
     }
 }

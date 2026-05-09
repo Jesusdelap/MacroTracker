@@ -324,7 +324,7 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                                     onClick = { showSourceMenu = true },
                                     enabled = !uiState.isLoading && uiState.editingEntry == null
                                 ) {
-                                    Icon(Icons.Filled.PhotoCamera, contentDescription = "Foto")
+                                    Icon(Icons.Filled.PhotoCamera, contentDescription = stringResource(R.string.chat_cd_photo))
                                 }
                                 DropdownMenu(
                                     expanded         = showSourceMenu,
@@ -368,7 +368,7 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                                 enabled  = uiState.inputText.isNotBlank() && !uiState.isLoading,
                                 modifier = Modifier.size(48.dp)
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar")
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.chat_cd_send))
                             }
                         }
                     }
@@ -464,7 +464,7 @@ private fun ChatBubble(
                                 ) {
                                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                                         Text(
-                                            "TOTAL",
+                                            stringResource(R.string.chat_total_label),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
@@ -606,7 +606,8 @@ private fun EditEntrySheet(
     onDismiss: () -> Unit,
     onSave: (MacroResult) -> Unit
 ) {
-    val hasIngredients = macro.ingredients.isNotEmpty()
+    val hasIngredients       = macro.ingredients.isNotEmpty()
+    val ingredientDefaultFmt = stringResource(R.string.chat_ingredient_default)
     var name by remember { mutableStateOf(macro.name) }
 
     var cal  by remember { mutableStateOf(macro.cal.toString()) }
@@ -686,7 +687,7 @@ private fun EditEntrySheet(
                 ) {
                     Icon(Icons.Filled.Add, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(Spacing.xs))
-                    Text("Añadir ingrediente")
+                    Text(stringResource(R.string.chat_add_ingredient))
                 }
 
                 val totalCal  = editIngredients.sumOf { it.cal.toIntOrNull() ?: it.calculatedCal }
@@ -696,7 +697,7 @@ private fun EditEntrySheet(
 
                 HorizontalDivider()
                 Text(
-                    "Total calculado",
+                    stringResource(R.string.chat_total_calculated),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -711,7 +712,7 @@ private fun EditEntrySheet(
                     onClick  = {
                         val ingredientMacros = editIngredients.mapIndexed { i, ing ->
                             IngredientMacro(
-                                name = ing.name.trim().ifBlank { "Ingrediente ${i + 1}" },
+                                name = ing.name.trim().ifBlank { String.format(ingredientDefaultFmt, i + 1) },
                                 cal  = ing.cal.toIntOrNull() ?: ing.calculatedCal,
                                 prot = ing.prot.toFloatOrNull() ?: 0f,
                                 carb = ing.carb.toFloatOrNull() ?: 0f,
@@ -731,16 +732,16 @@ private fun EditEntrySheet(
                     },
                     shape    = AppShapeMd,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Guardar cambios", style = MaterialTheme.typography.labelLarge) }
+                ) { Text(stringResource(R.string.chat_save_changes), style = MaterialTheme.typography.labelLarge) }
 
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    OutlinedTextField(value = prot, onValueChange = { prot = it }, label = { Text("Proteína (g)") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = carb, onValueChange = { carb = it }, label = { Text("Carbohid. (g)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = prot, onValueChange = { prot = it }, label = { Text(stringResource(R.string.macro_field_protein)) },     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = carb, onValueChange = { carb = it }, label = { Text(stringResource(R.string.macro_field_carbs_abbr)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    OutlinedTextField(value = fat,  onValueChange = { fat = it },  label = { Text("Grasa (g)") },     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = cal,  onValueChange = { cal = it },  label = { Text("kcal") },          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = fat,  onValueChange = { fat = it },  label = { Text(stringResource(R.string.macro_field_fat)) },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = cal,  onValueChange = { cal = it },  label = { Text(stringResource(R.string.macro_field_kcal)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
                 }
                 if (calMismatch) {
                     Surface(color = FatColor.copy(alpha = 0.12f), shape = AppShapeXs) {
@@ -754,7 +755,7 @@ private fun EditEntrySheet(
                             Icon(Icons.Filled.Warning, contentDescription = null,
                                 modifier = Modifier.size(14.dp), tint = FatColor)
                             Text(
-                                "Las macros calculan $calculatedCal kcal",
+                                stringResource(R.string.macro_warning_kcal, calculatedCal),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -775,7 +776,7 @@ private fun EditEntrySheet(
                     },
                     shape    = AppShapeMd,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Guardar cambios", style = MaterialTheme.typography.labelLarge) }
+                ) { Text(stringResource(R.string.chat_save_changes), style = MaterialTheme.typography.labelLarge) }
             }
         }
     }
@@ -803,7 +804,7 @@ private fun IngredientEditorCard(
                 OutlinedTextField(
                     value         = ingredient.name,
                     onValueChange = { onUpdate(ingredient.copy(name = it)) },
-                    label         = { Text("Ingrediente") },
+                    label         = { Text(stringResource(R.string.chat_ingredient_label)) },
                     singleLine    = true,
                     shape         = AppShapeMd,
                     modifier      = Modifier.weight(1f)
@@ -812,7 +813,7 @@ private fun IngredientEditorCard(
                     IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                         Icon(
                             Icons.Filled.Delete,
-                            contentDescription = "Eliminar",
+                            contentDescription = stringResource(R.string.action_delete),
                             tint               = MaterialTheme.colorScheme.error,
                             modifier           = Modifier.size(18.dp)
                         )
@@ -820,10 +821,10 @@ private fun IngredientEditorCard(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                OutlinedTextField(value = ingredient.prot, onValueChange = { onUpdate(ingredient.copy(prot = it)) }, label = { Text("Prot") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = ingredient.carb, onValueChange = { onUpdate(ingredient.copy(carb = it)) }, label = { Text("Carb") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = ingredient.fat,  onValueChange = { onUpdate(ingredient.copy(fat  = it)) }, label = { Text("Grasa") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = ingredient.cal,  onValueChange = { onUpdate(ingredient.copy(cal  = it)) }, label = { Text("kcal") },  keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = ingredient.prot, onValueChange = { onUpdate(ingredient.copy(prot = it)) }, label = { Text(stringResource(R.string.macro_field_protein_short)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = ingredient.carb, onValueChange = { onUpdate(ingredient.copy(carb = it)) }, label = { Text(stringResource(R.string.macro_field_carbs_short)) },   keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = ingredient.fat,  onValueChange = { onUpdate(ingredient.copy(fat  = it)) }, label = { Text(stringResource(R.string.macro_field_fat_short)) },    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = ingredient.cal,  onValueChange = { onUpdate(ingredient.copy(cal  = it)) }, label = { Text(stringResource(R.string.macro_field_kcal)) },          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),  singleLine = true, shape = AppShapeMd, modifier = Modifier.weight(1f))
             }
             if (ingredient.hasMismatch) {
                 Surface(color = FatColor.copy(alpha = 0.12f), shape = AppShapeXs) {
@@ -837,7 +838,7 @@ private fun IngredientEditorCard(
                         Icon(Icons.Filled.Warning, contentDescription = null,
                             modifier = Modifier.size(12.dp), tint = FatColor)
                         Text(
-                            "Calculado: ${ingredient.calculatedCal} kcal",
+                            stringResource(R.string.chat_ingredient_kcal_hint, ingredient.calculatedCal),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -855,7 +856,7 @@ private fun SaveAsRecipeButton(macro: MacroResult, onSave: (RecipeEntity) -> Uni
 
     AssistChip(
         onClick     = { showDialog = true },
-        label       = { Text("Guardar como receta", style = MaterialTheme.typography.labelSmall) },
+        label       = { Text(stringResource(R.string.chat_save_as_recipe), style = MaterialTheme.typography.labelSmall) },
         leadingIcon = {
             Icon(Icons.Filled.Bookmark, contentDescription = null, modifier = Modifier.size(14.dp))
         }
