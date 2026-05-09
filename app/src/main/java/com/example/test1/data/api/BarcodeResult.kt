@@ -4,7 +4,9 @@ import com.example.test1.data.db.entity.FoodItemEntity
 import com.example.test1.data.db.entity.FoodItemSource
 import com.example.test1.data.db.entity.FoodItemType
 import com.example.test1.data.db.entity.ServingMode
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class BarcodeResult(
     val name: String,
     val brand: String?,

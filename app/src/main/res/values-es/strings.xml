@@ -161,6 +161,16 @@
     <string name="settings_macros_equivalent">Las macros equivalen a %d kcal</string>
     <string name="settings_macros_mismatch">Las macros calculan %d kcal (objetivo: %d kcal)</string>
 
+    <!-- Barcode scanner screen -->
+    <string name="scanner_title">Escanear producto</string>
+    <string name="scanner_hint">Apunta al código de barras del producto</string>
+    <string name="scanner_looking_up">Buscando producto…</string>
+    <string name="scanner_not_found_title">Producto no encontrado</string>
+    <string name="scanner_permission_required">Se necesita permiso de cámara</string>
+    <string name="scanner_grant_permission">Conceder permiso</string>
+    <string name="scanner_back_cd">Volver</string>
+    <string name="scanner_retry">Escanear de nuevo</string>
+
     <!-- Chat greetings -->
     <string-array name="chat_greetings">
         <item>¿Qué has comido? Cuéntame y calculo los macros al instante.</item>
