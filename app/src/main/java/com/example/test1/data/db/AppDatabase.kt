@@ -17,7 +17,7 @@ import com.example.test1.data.db.entity.FoodItemEntity
 
 @Database(
     entities = [FoodEntryEntity::class, FoodItemEntity::class, DailyGoalEntity::class, ChatMessageEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -82,11 +82,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `chat_messages_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `isUser` INTEGER NOT NULL,
+                        `macroResultJson` TEXT,
+                        `isImageMessage` INTEGER NOT NULL DEFAULT 0,
+                        `foodEntryId` INTEGER,
+                        `timestamp` INTEGER NOT NULL DEFAULT 0,
+                        `imagePath` TEXT
+                    )
+                """.trimIndent())
+                database.execSQL("INSERT INTO `chat_messages_new` SELECT * FROM `chat_messages`")
+                database.execSQL("DROP TABLE `chat_messages`")
+                database.execSQL("ALTER TABLE `chat_messages_new` RENAME TO `chat_messages`")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "macro_tracker.db")
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
-                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5)
                     .build()
                     .also { INSTANCE = it }
             }

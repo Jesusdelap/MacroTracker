@@ -86,7 +86,7 @@ fun BarcodeScannerScreen(
         state = ScannerState.Loading
         scope.launch {
             app.barcodeNutritionService.lookup(barcode)
-                .onSuccess { result -> onProductFound(result) }
+                .onSuccess { result -> state = ScannerState.Scanning; onProductFound(result) }
                 .onFailure { e ->
                     state = ScannerState.Error(
                         message = e.message ?: context.getString(R.string.scanner_not_found_title),

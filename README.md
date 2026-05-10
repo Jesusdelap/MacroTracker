@@ -8,8 +8,8 @@ Android app for logging daily macronutrient intake via natural language chat.
 
 La base de datos usa Room con **migraciones explícitas obligatorias desde v7**. Cualquier cambio en una entidad sin su migración correspondiente provoca un crash al abrir la app (nunca pérdida silenciosa de datos).
 
-### Versión actual: 7
-Fichero de esquema de referencia: `app/schemas/com.example.test1.data.db.AppDatabase/7.json`
+### Versión actual: 8
+Fichero de esquema de referencia: `app/schemas/com.example.test1.data.db.AppDatabase/8.json`
 
 ---
 
@@ -85,7 +85,7 @@ class Migration7to8 : AutoMigrationSpec
 
 ---
 
-### Entidades actuales (v7)
+### Entidades actuales (v8)
 
 | Tabla | Entidad | Campos clave |
 |-------|---------|--------------|

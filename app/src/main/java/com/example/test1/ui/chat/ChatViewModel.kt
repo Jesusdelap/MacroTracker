@@ -32,12 +32,14 @@ import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 
 data class ChatMessage(
-    val id: Long = System.currentTimeMillis(),
+    val id: Long = 0L,
     val text: String,
     val isUser: Boolean,
     val macroResult: MacroResult? = null,
     val isImageMessage: Boolean = false,
-    val foodEntryId: Long? = null
+    val foodEntryId: Long? = null,
+    val imagePath: String? = null,
+    val imageUri: Uri? = null
 )
 
 data class EditingEntry(
@@ -52,7 +54,8 @@ data class ChatUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val debugInfo: String? = null,
-    val editingEntry: EditingEntry? = null
+    val editingEntry: EditingEntry? = null,
+    val pendingImageUri: Uri? = null
 )
 
 class ChatViewModel(
@@ -76,6 +79,7 @@ class ChatViewModel(
 
     private val pendingHistory = mutableListOf<Pair<String, String>>()
     private var pendingImageBase64: String? = null
+    private var pendingImagePath: String? = null
     private val editingHistory = mutableListOf<Pair<String, String>>()
 
     private val messageJson = Json { ignoreUnknownKeys = true }
@@ -90,8 +94,9 @@ class ChatViewModel(
             sharedDate.drop(1).collect {
                 pendingHistory.clear()
                 pendingImageBase64 = null
+                pendingImagePath = null
                 editingHistory.clear()
-                _uiState.update { it.copy(editingEntry = null, isLoading = false, error = null) }
+                _uiState.update { it.copy(editingEntry = null, isLoading = false, error = null, pendingImageUri = null) }
             }
         }
 
@@ -114,7 +119,9 @@ class ChatViewModel(
             try { messageJson.decodeFromString<MacroResult>(it) } catch (_: Exception) { null }
         },
         isImageMessage = isImageMessage,
-        foodEntryId = foodEntryId
+        foodEntryId = foodEntryId,
+        imagePath = imagePath,
+        imageUri = imagePath?.let { Uri.fromFile(java.io.File(it)) }
     )
 
     private fun ChatMessage.toEntity(date: String): ChatMessageEntity = ChatMessageEntity(
@@ -125,7 +132,8 @@ class ChatViewModel(
         macroResultJson = macroResult?.let { messageJson.encodeToString(it) },
         isImageMessage = isImageMessage,
         foodEntryId = foodEntryId,
-        timestamp = id
+        timestamp = System.currentTimeMillis(),
+        imagePath = imagePath
     )
 
     fun onInputChange(text: String) {
@@ -133,8 +141,9 @@ class ChatViewModel(
     }
 
     fun sendMessage() {
-        val text = _uiState.value.inputText.trim()
-        if (text.isBlank() || _uiState.value.isLoading) return
+        val text     = _uiState.value.inputText.trim()
+        val hasImage = pendingImageBase64 != null
+        if ((text.isBlank() && !hasImage) || _uiState.value.isLoading) return
 
         val editingEntry = _uiState.value.editingEntry
         if (editingEntry != null) {
@@ -142,11 +151,21 @@ class ChatViewModel(
             return
         }
 
-        _uiState.update { it.copy(inputText = "", isLoading = true) }
+        val capturedImagePath = pendingImagePath
+        pendingImagePath = null
+        _uiState.update { it.copy(inputText = "", isLoading = true, pendingImageUri = null) }
 
-        val userMsg = ChatMessage(id = System.currentTimeMillis(), text = text, isUser = true)
-        pendingHistory.add("user" to text)
-        val historySnapshot = pendingHistory.toList()
+        val displayText = if (text.isNotBlank()) text else str(R.string.chat_photo_label)
+        val userMsg = ChatMessage(
+            text           = displayText,
+            isUser         = true,
+            isImageMessage = hasImage,
+            imagePath      = capturedImagePath,
+            imageUri       = capturedImagePath?.let { Uri.fromFile(java.io.File(it)) }
+        )
+        // Capture history BEFORE adding current text, then add it for future turns
+        val priorHistory = pendingHistory.toList()
+        if (text.isNotBlank()) pendingHistory.add("user" to text)
 
         viewModelScope.launch {
             chatMessageRepository.insert(userMsg.toEntity(sharedDate.value))
@@ -154,19 +173,24 @@ class ChatViewModel(
             val recipeContext = buildRecipeContext()
             val imageBase64 = pendingImageBase64
             val result = if (imageBase64 != null) {
-                geminiService.chatFoodWithImage(imageBase64, textHistory = historySnapshot, recipeContext = recipeContext)
+                geminiService.chatFoodWithImage(
+                    imageBase64,
+                    userText      = text.ifBlank { null },
+                    priorHistory  = priorHistory,
+                    recipeContext = recipeContext
+                )
             } else {
-                geminiService.chatFood(historySnapshot, recipeContext)
+                geminiService.chatFood(pendingHistory.toList(), recipeContext)
             }
             if (result.isFailure) { handleError(result.exceptionOrNull()!!); return@launch }
-            handleResponse(result.getOrThrow(), historySnapshot)
+            handleResponse(result.getOrThrow(), pendingHistory.toList())
         }
     }
 
     private fun handleAIEditMessage(text: String, editingEntry: EditingEntry) {
         _uiState.update { it.copy(inputText = "", isLoading = true) }
 
-        val userMsg = ChatMessage(id = System.currentTimeMillis(), text = text, isUser = true)
+        val userMsg = ChatMessage(text = text, isUser = true)
 
         if (editingHistory.isEmpty()) {
             val orig = editingEntry.originalMacro
@@ -216,7 +240,6 @@ class ChatViewModel(
                     editingEntry.entryId
                 )
                 val confirmMsg = ChatMessage(
-                    id = System.currentTimeMillis(),
                     text = str(R.string.vm_chat_entry_updated),
                     isUser = false
                 )
@@ -228,7 +251,6 @@ class ChatViewModel(
                 val modelJson = buildJsonObject { put("question", response.question) }.toString()
                 editingHistory.add("model" to modelJson)
                 val aiMsg = ChatMessage(
-                    id = System.currentTimeMillis(),
                     text = response.question,
                     isUser = false
                 )
@@ -245,34 +267,40 @@ class ChatViewModel(
     fun onImageCaptured(uri: Uri, context: Context) {
         if (_uiState.value.isLoading) return
         viewModelScope.launch {
-            val base64 = withContext(Dispatchers.IO) { compressToBase64(uri, context) }
-            if (base64 == null) {
-                val errMsg = ChatMessage(
-                    id = System.currentTimeMillis(),
-                    text = str(R.string.vm_chat_image_failed),
-                    isUser = false
-                )
-                chatMessageRepository.insert(errMsg.toEntity(sharedDate.value))
-                return@launch
+            val (base64, savedPath) = withContext(Dispatchers.IO) {
+                val b64 = compressToBase64(uri, context)
+                val path = saveImageForDisplay(uri, context)
+                b64 to path
             }
-
-            pendingImageBase64 = base64
-            pendingHistory.clear()
-
-            val photoMsg = ChatMessage(
-                id = System.currentTimeMillis(),
-                text = str(R.string.chat_photo_label),
-                isUser = true,
-                isImageMessage = true
-            )
-            chatMessageRepository.insert(photoMsg.toEntity(sharedDate.value))
-            _uiState.update { it.copy(isLoading = true) }
-
-            val recipeContext = buildRecipeContext()
-            val result = geminiService.chatFoodWithImage(base64, recipeContext = recipeContext)
-            if (result.isFailure) { handleError(result.exceptionOrNull()!!); return@launch }
-            handleResponse(result.getOrThrow(), emptyList())
+            if (base64 != null) {
+                pendingImageBase64 = base64
+                pendingImagePath = savedPath
+                _uiState.update { it.copy(pendingImageUri = uri) }
+            }
         }
+    }
+
+    private fun saveImageForDisplay(uri: Uri, context: Context): String? = runCatching {
+        val dir = java.io.File(context.filesDir, "chat_images").also { it.mkdirs() }
+        val file = java.io.File(dir, "img_${System.currentTimeMillis()}.jpg")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val original = BitmapFactory.decodeStream(input) ?: return null
+            val maxPx = 480
+            val scaled = if (original.width > maxPx || original.height > maxPx) {
+                val scale = maxPx.toFloat() / maxOf(original.width, original.height)
+                Bitmap.createScaledBitmap(original, (original.width * scale).toInt(), (original.height * scale).toInt(), true)
+            } else original
+            java.io.FileOutputStream(file).use { out ->
+                scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 40, out)
+            }
+            file.absolutePath
+        }
+    }.getOrNull()
+
+    fun clearPendingImage() {
+        pendingImageBase64 = null
+        pendingImagePath = null
+        _uiState.update { it.copy(pendingImageUri = null) }
     }
 
     private suspend fun handleResponse(response: FoodChatResponse, historySnapshot: List<Pair<String, String>>) {
@@ -280,7 +308,6 @@ class ChatViewModel(
             response.error == "no_food" -> {
                 resetConversation()
                 val aiMsg = ChatMessage(
-                    id = System.currentTimeMillis(),
                     text = str(R.string.vm_chat_no_food_in_image),
                     isUser = false
                 )
@@ -307,7 +334,6 @@ class ChatViewModel(
                     )
                 )
                 val aiMsg = ChatMessage(
-                    id = System.currentTimeMillis(),
                     text = macro.name,
                     isUser = false,
                     macroResult = macro,
@@ -320,13 +346,13 @@ class ChatViewModel(
                 val modelJson = buildJsonObject { put("question", response.question) }.toString()
                 pendingHistory.add("model" to modelJson)
                 val aiMsg = ChatMessage(
-                    id = System.currentTimeMillis(),
                     text = response.question,
                     isUser = false
                 )
                 chatMessageRepository.insert(aiMsg.toEntity(sharedDate.value))
                 _uiState.update { it.copy(isLoading = false) }
             }
+            else -> _uiState.update { it.copy(isLoading = false) }
         }
     }
 
@@ -336,7 +362,7 @@ class ChatViewModel(
             is RateLimitException -> str(R.string.vm_chat_error_rate_limit)
             else -> str(R.string.vm_chat_error_processing, e.message ?: str(R.string.vm_chat_error_retry))
         }
-        val aiMsg = ChatMessage(id = System.currentTimeMillis(), text = msg, isUser = false)
+        val aiMsg = ChatMessage(text = msg, isUser = false)
         chatMessageRepository.insert(aiMsg.toEntity(sharedDate.value))
         _uiState.update {
             it.copy(
@@ -350,6 +376,7 @@ class ChatViewModel(
     private fun resetConversation() {
         pendingHistory.clear()
         pendingImageBase64 = null
+        _uiState.update { it.copy(pendingImageUri = null) }
     }
 
     fun discardEntry(entryId: Long, messageId: Long) {
@@ -391,7 +418,6 @@ class ChatViewModel(
     fun startAIEdit(entryId: Long, messageId: Long, macro: MacroResult) {
         editingHistory.clear()
         val promptMsg = ChatMessage(
-            id = System.currentTimeMillis(),
             text = str(R.string.vm_chat_edit_prompt),
             isUser = false
         )
@@ -456,7 +482,6 @@ class ChatViewModel(
                 )
             )
             val confirmMsg = ChatMessage(
-                id = System.currentTimeMillis(),
                 text = str(R.string.vm_chat_repeated, macro.name),
                 isUser = false,
                 macroResult = macro,

@@ -30,8 +30,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GEMINI_API_KEY", "\"${localProperties["GEMINI_API_KEY"] ?: ""}\"")
         buildConfigField("int", "MAX_CHAT_DAYS", "${localProperties["MAX_CHAT_DAYS"] ?: 365}")
-        buildConfigField("String", "FATSECRET_CLIENT_ID", "\"${localProperties["FATSERCRET_CLIENT_ID"] ?: ""}\"")
-        buildConfigField("String", "FATSECRET_CLIENT_SECRET", "\"${localProperties["FATSERCRET_KEY"] ?: ""}\"")
+        buildConfigField("String", "FATSECRET_CLIENT_ID", "\"${localProperties["FATSECRET_CLIENT_ID"] ?: ""}\"")
+        buildConfigField("String", "FATSECRET_CLIENT_SECRET", "\"${localProperties["FATSECRET_KEY"] ?: ""}\"")
         buildConfigField("String", "USDA_API_KEY", "\"${localProperties["FOODDATA_KEY"] ?: ""}\"")
 
     }
