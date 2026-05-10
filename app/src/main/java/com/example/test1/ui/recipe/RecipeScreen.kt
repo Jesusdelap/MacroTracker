@@ -1045,9 +1045,10 @@ private fun ManualTab(
         if (calculatedKcal100 > 0) kcal100 = calculatedKcal100.toString()
     }
 
+    Column(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .weight(1f)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = Spacing.xxl)
     ) {
@@ -1186,9 +1187,15 @@ private fun ManualTab(
             }
         }
 
-        Spacer(Modifier.height(Spacing.xxl))
-
-        // ── GUARDAR ───────────────────────────────────────────────────────
+    }
+    // ── GUARDAR (sticky bottom) ────────────────────────────────────────
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+    ) {
         Button(
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape    = AppShapeMd,
@@ -1244,6 +1251,7 @@ private fun ManualTab(
             )
         }
     }
+    } // outer Column
 }
 
 // ─── AI tab ────────────────────────────────────────────────────────────────────
