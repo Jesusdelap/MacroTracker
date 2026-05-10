@@ -778,9 +778,11 @@ internal fun RecipeCreationDialog(
     var aiInputText       by remember { mutableStateOf("") }
     var aiIsLoading       by remember { mutableStateOf(false) }
     var aiExtractedRecipe by remember { mutableStateOf<MacroResult?>(null) }
-    var aiName            by remember { mutableStateOf("") }
-    var aiNotes           by remember { mutableStateOf("") }
-    var aiPer100g         by remember { mutableStateOf(false) }
+
+    // Auto-navigate to Manual tab when AI detects a recipe
+    LaunchedEffect(aiExtractedRecipe) {
+        if (aiExtractedRecipe != null) selectedTab = 0
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -829,7 +831,7 @@ internal fun RecipeCreationDialog(
                         }
                     }
                     if (selectedTab == 0 || isEditing) {
-                        ManualTab(initialValues = initialValues, editingRecipe = editingRecipe, onSave = onSave)
+                        ManualTab(initialValues = aiExtractedRecipe ?: initialValues, editingRecipe = editingRecipe, onSave = onSave)
                     } else {
                         AiTab(
                             geminiService           = geminiService,
@@ -839,15 +841,7 @@ internal fun RecipeCreationDialog(
                             onInputTextChange       = { aiInputText = it },
                             isLoading               = aiIsLoading,
                             onIsLoadingChange       = { aiIsLoading = it },
-                            extractedRecipe         = aiExtractedRecipe,
-                            onExtractedRecipeChange = { aiExtractedRecipe = it },
-                            aiName                  = aiName,
-                            onAiNameChange          = { aiName = it },
-                            aiNotes                 = aiNotes,
-                            onAiNotesChange         = { aiNotes = it },
-                            aiPer100g               = aiPer100g,
-                            onAiPer100gChange       = { aiPer100g = it },
-                            onSave                  = onSave
+                            onExtractedRecipeChange = { aiExtractedRecipe = it }
                         )
                     }
                 }
@@ -1219,20 +1213,11 @@ private fun AiTab(
     onInputTextChange: (String) -> Unit,
     isLoading: Boolean,
     onIsLoadingChange: (Boolean) -> Unit,
-    extractedRecipe: MacroResult?,
-    onExtractedRecipeChange: (MacroResult?) -> Unit,
-    aiName: String,
-    onAiNameChange: (String) -> Unit,
-    aiNotes: String,
-    onAiNotesChange: (String) -> Unit,
-    aiPer100g: Boolean,
-    onAiPer100gChange: (Boolean) -> Unit,
-    onSave: (FoodItemEntity) -> Unit
+    onExtractedRecipeChange: (MacroResult?) -> Unit
 ) {
     val rateLimitMsg = stringResource(R.string.vm_chat_error_rate_limit)
     val aiErrorFmt   = stringResource(R.string.recipe_ai_error)
     val aiErrorRetry = stringResource(R.string.recipe_ai_error_retry)
-    val haptics      = LocalHapticFeedback.current
     val scope        = rememberCoroutineScope()
     val listState    = rememberLazyListState()
 
@@ -1255,10 +1240,7 @@ private fun AiTab(
                 .onSuccess { response ->
                     val display = cleanAiText(response)
                     onMessagesChange(updatedMessages + AiMsg(display, isUser = false))
-                    extractRecipe(response)?.let { recipe ->
-                        onExtractedRecipeChange(recipe)
-                        if (aiName.isBlank()) onAiNameChange(recipe.name)
-                    }
+                    extractRecipe(response)?.let { onExtractedRecipeChange(it) }
                 }
                 .onFailure { e ->
                     onMessagesChange(updatedMessages + AiMsg(
@@ -1299,83 +1281,6 @@ private fun AiTab(
                                 Text(stringResource(R.string.recipe_ai_analyzing), style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Recipe detected card
-        AnimatedVisibility(visible = extractedRecipe != null) {
-            extractedRecipe?.let { recipe ->
-                HorizontalDivider()
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) {
-                    Column(
-                        modifier            = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Row(
-                            verticalAlignment     = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                        ) {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = null,
-                                modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                            Text(stringResource(R.string.recipe_ai_detected), style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold)
-                        }
-                        OutlinedTextField(
-                            value = aiName, onValueChange = onAiNameChange,
-                            label = { Text(stringResource(R.string.recipe_ai_name_field)) }, singleLine = true,
-                            modifier = Modifier.fillMaxWidth(), shape = AppShapeMd
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                            MacroPill(MacroType.CALORIES, "${recipe.cal}")
-                            MacroPill(MacroType.PROTEIN,  "${recipe.prot}g")
-                            MacroPill(MacroType.CARBS,    "${recipe.carb}g")
-                            MacroPill(MacroType.FAT,      "${recipe.fat}g")
-                        }
-                        // Per-100g toggle
-                        Row(
-                            modifier              = Modifier.fillMaxWidth(),
-                            verticalAlignment     = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(stringResource(R.string.recipe_ai_per_100g_label), style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    stringResource(R.string.recipe_ai_per_100g_note),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextTertiary
-                                )
-                            }
-                            Switch(checked = aiPer100g, onCheckedChange = onAiPer100gChange)
-                        }
-                        OutlinedTextField(
-                            value = aiNotes, onValueChange = onAiNotesChange,
-                            label = { Text(stringResource(R.string.recipe_notes_ingredients_label)) },
-                            maxLines = 3, modifier = Modifier.fillMaxWidth(), shape = AppShapeMd
-                        )
-                        Button(
-                            modifier = Modifier.fillMaxWidth().height(46.dp),
-                            shape    = AppShapeMd,
-                            onClick  = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                val finalName = aiName.trim().ifBlank { recipe.name }
-                                onSave(FoodItemEntity(
-                                    name           = finalName,
-                                    servings       = 1f,
-                                    kcalPerServing = recipe.cal,
-                                    protein        = recipe.prot,
-                                    carbs          = recipe.carb,
-                                    fat            = recipe.fat,
-                                    ingredients    = aiNotes.trim(),
-                                    servingMode    = if (aiPer100g) ServingMode.PER_100G.name else ServingMode.PER_SERVING.name
-                                ))
-                            }
-                        ) {
-                            Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(Spacing.sm))
-                            Text(stringResource(R.string.recipe_ai_save), fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
