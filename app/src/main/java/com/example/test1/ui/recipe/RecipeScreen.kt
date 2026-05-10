@@ -778,10 +778,14 @@ internal fun RecipeCreationDialog(
     var aiInputText       by remember { mutableStateOf("") }
     var aiIsLoading       by remember { mutableStateOf(false) }
     var aiExtractedRecipe by remember { mutableStateOf<MacroResult?>(null) }
+    var aiSummaryText     by remember { mutableStateOf("") }
 
-    // Auto-navigate to Manual tab when AI detects a recipe
+    // Auto-navigate to Manual tab when AI detects a recipe; snapshot the summary text for Notes
     LaunchedEffect(aiExtractedRecipe) {
-        if (aiExtractedRecipe != null) selectedTab = 0
+        if (aiExtractedRecipe != null) {
+            aiSummaryText = aiMessages.lastOrNull { !it.isUser }?.text?.trim() ?: ""
+            selectedTab = 0
+        }
     }
 
     Dialog(
@@ -831,7 +835,12 @@ internal fun RecipeCreationDialog(
                         }
                     }
                     if (selectedTab == 0 || isEditing) {
-                        ManualTab(initialValues = aiExtractedRecipe ?: initialValues, editingRecipe = editingRecipe, onSave = onSave)
+                        ManualTab(
+                            initialValues = aiExtractedRecipe ?: initialValues,
+                            initialNotes  = aiSummaryText.ifBlank { null },
+                            editingRecipe = editingRecipe,
+                            onSave        = onSave
+                        )
                     } else {
                         AiTab(
                             geminiService           = geminiService,
@@ -973,6 +982,7 @@ private fun MacroInputRow(
 @Composable
 private fun ManualTab(
     initialValues: MacroResult? = null,
+    initialNotes: String? = null,
     editingRecipe: FoodItemEntity? = null,
     onSave: (FoodItemEntity) -> Unit
 ) {
@@ -984,7 +994,7 @@ private fun ManualTab(
 
     // PorRacion fields
     var name    by remember { mutableStateOf(editingRecipe?.name ?: initialValues?.name ?: "") }
-    var notes   by remember { mutableStateOf(editingRecipe?.ingredients ?: "") }
+    var notes   by remember { mutableStateOf(editingRecipe?.ingredients ?: initialNotes ?: "") }
     var servings by remember { mutableStateOf(editingRecipe?.servings?.toInt()?.toString() ?: "1") }
     var kcal    by remember { mutableStateOf(
         if (!startAs100g) editingRecipe?.kcalPerServing?.toString() ?: initialValues?.cal?.toString() ?: ""
