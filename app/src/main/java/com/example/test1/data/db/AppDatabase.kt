@@ -17,8 +17,8 @@ import com.example.test1.data.db.entity.FoodItemEntity
 
 @Database(
     entities = [FoodEntryEntity::class, FoodItemEntity::class, DailyGoalEntity::class, ChatMessageEntity::class],
-    version = 6,
-    exportSchema = false
+    version = 7,
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun foodEntryDao(): FoodEntryDao
@@ -76,11 +76,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE chat_messages ADD COLUMN imagePath TEXT")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "macro_tracker.db")
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6)
                     .build()
                     .also { INSTANCE = it }
             }
