@@ -172,6 +172,7 @@ class ChatViewModel(
 
             val recipeContext = buildRecipeContext()
             val imageBase64 = pendingImageBase64
+            pendingImageBase64 = null
             val result = if (imageBase64 != null) {
                 geminiService.chatFoodWithImage(
                     imageBase64,
