@@ -12,6 +12,9 @@
     <string name="action_add">Añadir</string>
     <string name="action_save">Guardar</string>
 
+    <!-- Bottom navigation tabs -->
+    <string name="nav_foods">Alimentos</string>
+
     <!-- Dates -->
     <string name="date_today">Hoy</string>
     <string name="date_yesterday">Ayer</string>
@@ -134,6 +137,7 @@
     <string name="recipe_ai_save">Guardar receta</string>
     <string name="recipe_ai_error">Error: %s</string>
     <string name="recipe_ai_error_retry">Reintentar</string>
+    <string name="recipe_ai_filled_banner">Rellenado por IA · Edita si es necesario</string>
 
     <!-- Summary screen -->
     <string name="summary_title">Resumen</string>
@@ -160,6 +164,19 @@
     <string name="settings_saved">Objetivos guardados</string>
     <string name="settings_macros_equivalent">Las macros equivalen a %d kcal</string>
     <string name="settings_macros_mismatch">Las macros calculan %d kcal (objetivo: %d kcal)</string>
+
+    <!-- Products tab -->
+    <string name="recipes_tab">Recetas</string>
+    <string name="products_tab">Productos</string>
+    <plurals name="products_count">
+        <item quantity="one">%d producto</item>
+        <item quantity="other">%d productos</item>
+    </plurals>
+    <string name="products_search_hint">Buscar producto…</string>
+    <string name="products_empty_title">Sin productos guardados</string>
+    <string name="products_empty_message">Escanea un código de barras para añadir</string>
+    <string name="products_deleted">\"%s\" eliminado</string>
+    <string name="products_scan_cd">Escanear código de barras</string>
 
     <!-- Product form screen -->
     <string name="product_form_title">Nuevo producto</string>

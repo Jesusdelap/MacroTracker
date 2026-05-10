@@ -988,6 +988,10 @@ private fun ManualTab(
 ) {
     val haptics = LocalHapticFeedback.current
 
+    // Banner "Filled by AI" — visible only when pre-filled by AI, dismissed on first edit or X
+    var showAiBanner by remember { mutableStateOf(initialNotes != null) }
+    val dismissBanner: () -> Unit = { showAiBanner = false }
+
     // Pre-fill mode from editing recipe
     val startAs100g = editingRecipe?.isPer100g == true
     var inputMode by remember { mutableStateOf(if (startAs100g) InputMode.Por100g else InputMode.PorRacion) }
@@ -1047,16 +1051,46 @@ private fun ManualTab(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = Spacing.xxl)
     ) {
+        // ── BANNER "FILLED BY AI" ─────────────────────────────────────────
+        AnimatedVisibility(visible = showAiBanner, enter = fadeIn(), exit = fadeOut()) {
+            Row(
+                modifier              = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = Spacing.md)
+                    .background(AccentPrimary.copy(alpha = 0.10f), AppShapeMd)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null,
+                        modifier = Modifier.size(14.dp), tint = AccentPrimary)
+                    Text(
+                        stringResource(R.string.recipe_ai_filled_banner),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AccentPrimary
+                    )
+                }
+                IconButton(onClick = dismissBanner, modifier = Modifier.size(20.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close),
+                        modifier = Modifier.size(14.dp), tint = AccentPrimary)
+                }
+            }
+        }
+
         // ── INFORMACIÓN BÁSICA ────────────────────────────────────────────
         FormSectionHeader(stringResource(R.string.recipe_section_basic))
         Spacer(Modifier.height(Spacing.lg))
         RecipeTextField(
-            value = name, onValueChange = { name = it },
+            value = name, onValueChange = { name = it; dismissBanner() },
             placeholder = stringResource(R.string.recipe_name_field), required = true, singleLine = true
         )
         Spacer(Modifier.height(Spacing.lg))
         RecipeTextField(
-            value = notes, onValueChange = { notes = it },
+            value = notes, onValueChange = { notes = it; dismissBanner() },
             placeholder = stringResource(R.string.recipe_notes_field), minLines = 3
         )
 
@@ -1068,18 +1102,18 @@ private fun ManualTab(
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             SegmentedButton(
                 selected = inputMode == InputMode.PorRacion,
-                onClick  = { inputMode = InputMode.PorRacion },
+                onClick  = { inputMode = InputMode.PorRacion; dismissBanner() },
                 shape    = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
             ) { Text(stringResource(R.string.recipe_mode_per_serving)) }
             SegmentedButton(
                 selected = inputMode == InputMode.Por100g,
-                onClick  = { inputMode = InputMode.Por100g },
+                onClick  = { inputMode = InputMode.Por100g; dismissBanner() },
                 shape    = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
             ) { Text(stringResource(R.string.recipe_mode_per_100g)) }
         }
         Spacer(Modifier.height(Spacing.lg))
         if (inputMode == InputMode.PorRacion) {
-            MacroInputRow(stringResource(R.string.recipe_servings_field), servings, { servings = it })
+            MacroInputRow(stringResource(R.string.recipe_servings_field), servings, { servings = it; dismissBanner() })
         } else {
             Text(
                 stringResource(R.string.recipe_per_100g_note),
@@ -1098,10 +1132,10 @@ private fun ManualTab(
         Spacer(Modifier.height(Spacing.lg))
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             if (inputMode == InputMode.PorRacion) {
-                MacroInputRow(stringResource(R.string.macro_fullname_protein),      protein, { protein = it }, "g",    required = true)
-                MacroInputRow(stringResource(R.string.macro_fullname_carbs), carbs,   { carbs = it },   "g",    required = true)
-                MacroInputRow(stringResource(R.string.macro_fullname_fat),        fat,     { fat = it },     "g",    required = true)
-                MacroInputRow(stringResource(R.string.macro_fullname_calories),      kcal,    { kcal = it },    "kcal", required = true)
+                MacroInputRow(stringResource(R.string.macro_fullname_protein),      protein, { protein = it; dismissBanner() }, "g",    required = true)
+                MacroInputRow(stringResource(R.string.macro_fullname_carbs), carbs,   { carbs = it;   dismissBanner() }, "g",    required = true)
+                MacroInputRow(stringResource(R.string.macro_fullname_fat),        fat,     { fat = it;     dismissBanner() }, "g",    required = true)
+                MacroInputRow(stringResource(R.string.macro_fullname_calories),      kcal,    { kcal = it;    dismissBanner() }, "kcal", required = true)
                 val kcalEntered = kcal.toIntOrNull()
                 if (kcalEntered != null && calculatedKcal > 0 &&
                     abs(kcalEntered - calculatedKcal) > calculatedKcal * 0.10f) {
@@ -1124,10 +1158,10 @@ private fun ManualTab(
                     }
                 }
             } else {
-                MacroInputRow(stringResource(R.string.macro_fullname_protein),      prot100,  { prot100 = it },  "g",    required = true)
-                MacroInputRow(stringResource(R.string.macro_fullname_carbs), carbs100, { carbs100 = it }, "g",    required = true)
-                MacroInputRow(stringResource(R.string.macro_fullname_fat),        fat100,   { fat100 = it },   "g",    required = true)
-                MacroInputRow(stringResource(R.string.macro_fullname_calories),      kcal100,  { kcal100 = it },  "kcal", required = true)
+                MacroInputRow(stringResource(R.string.macro_fullname_protein),      prot100,  { prot100 = it;  dismissBanner() }, "g",    required = true)
+                MacroInputRow(stringResource(R.string.macro_fullname_carbs), carbs100, { carbs100 = it; dismissBanner() }, "g",    required = true)
+                MacroInputRow(stringResource(R.string.macro_fullname_fat),        fat100,   { fat100 = it;   dismissBanner() }, "g",    required = true)
+                MacroInputRow(stringResource(R.string.macro_fullname_calories),      kcal100,  { kcal100 = it;  dismissBanner() }, "kcal", required = true)
                 val kcal100Entered = kcal100.toIntOrNull()
                 if (kcal100Entered != null && calculatedKcal100 > 0 &&
                     abs(kcal100Entered - calculatedKcal100) > calculatedKcal100 * 0.10f) {
