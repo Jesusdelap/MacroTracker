@@ -47,6 +47,7 @@ import com.example.test1.data.api.MacroResult
 import com.example.test1.data.api.RateLimitException
 import com.example.test1.data.db.entity.FoodItemEntity
 import com.example.test1.data.db.entity.ServingMode
+import com.example.test1.data.db.entity.FoodItemSource
 import com.example.test1.data.db.entity.isPer100g
 import com.example.test1.ui.components.MacroPill
 import com.example.test1.ui.theme.*
@@ -84,19 +85,27 @@ private fun cleanAiText(response: String): String {
 // ─── Main screen ───────────────────────────────────────────────────────────────
 
 @Composable
-fun RecipeScreen() {
+fun RecipeScreen(onScanBarcode: () -> Unit) {
     val app = LocalContext.current.applicationContext as MacroApp
     val vm: RecipeViewModel = viewModel {
         RecipeViewModel(app.recipeRepository, app.foodRepository)
     }
-    val uiState by vm.uiState.collectAsState()
-    var showAddDialog  by remember { mutableStateOf(false) }
-    var editingRecipe  by remember { mutableStateOf<FoodItemEntity?>(null) }
+    val uiState         by vm.uiState.collectAsState()
+    val productsUiState by vm.productsUiState.collectAsState()
+    var showAddDialog   by remember { mutableStateOf(false) }
+    var editingRecipe   by remember { mutableStateOf<FoodItemEntity?>(null) }
+    var selectedTab     by remember { mutableIntStateOf(0) }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val recipeDeletedFmt = stringResource(R.string.recipe_deleted)
-    val undoLabel        = stringResource(R.string.action_undo)
+    val scope             = rememberCoroutineScope()
+    val recipeDeletedFmt  = stringResource(R.string.recipe_deleted)
+    val productDeletedFmt = stringResource(R.string.products_deleted)
+    val undoLabel         = stringResource(R.string.action_undo)
+
+    val searchValue: String = if (selectedTab == 0) uiState.searchQuery else productsUiState.searchQuery
+    val onSearchValueChange: (String) -> Unit = { q ->
+        if (selectedTab == 0) vm.onSearchChange(q) else vm.onProductSearchChange(q)
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -122,14 +131,32 @@ fun RecipeScreen() {
                             fontWeight = FontWeight.Bold,
                             color      = MaterialTheme.colorScheme.onBackground
                         )
-                        if (uiState.recipes.isNotEmpty()) {
+                        val count   = if (selectedTab == 0) uiState.recipes.size else productsUiState.products.size
+                        val plurals = if (selectedTab == 0) R.plurals.recipe_count else R.plurals.products_count
+                        if (count > 0) {
                             Text(
-                                pluralStringResource(R.plurals.recipe_count, uiState.recipes.size, uiState.recipes.size),
+                                pluralStringResource(plurals, count, count),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
+                }
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.lg, vertical = Spacing.xs)
+                ) {
+                    SegmentedButton(
+                        selected = selectedTab == 0,
+                        onClick  = { selectedTab = 0 },
+                        shape    = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                    ) { Text(stringResource(R.string.recipes_tab)) }
+                    SegmentedButton(
+                        selected = selectedTab == 1,
+                        onClick  = { selectedTab = 1 },
+                        shape    = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                    ) { Text(stringResource(R.string.products_tab)) }
                 }
                 HorizontalDivider(
                     color     = MaterialTheme.colorScheme.outlineVariant,
@@ -138,30 +165,45 @@ fun RecipeScreen() {
             }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick        = { showAddDialog = true },
-                icon           = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text           = { Text(stringResource(R.string.recipe_new)) },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor   = MaterialTheme.colorScheme.onPrimary
-            )
+            if (selectedTab == 0) {
+                ExtendedFloatingActionButton(
+                    onClick        = { showAddDialog = true },
+                    icon           = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text           = { Text(stringResource(R.string.recipe_new)) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor   = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                FloatingActionButton(
+                    onClick        = onScanBarcode,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor   = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Filled.QrCodeScanner, contentDescription = stringResource(R.string.products_scan_cd))
+                }
+            }
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             OutlinedTextField(
-                value         = uiState.searchQuery,
-                onValueChange = vm::onSearchChange,
+                value         = searchValue,
+                onValueChange = onSearchValueChange,
                 modifier      = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.lg, vertical = 10.dp),
-                placeholder  = { Text(stringResource(R.string.recipe_search_hint)) },
+                placeholder  = {
+                    Text(
+                        if (selectedTab == 0) stringResource(R.string.recipe_search_hint)
+                        else stringResource(R.string.products_search_hint)
+                    )
+                },
                 leadingIcon  = {
                     Icon(Icons.Filled.Search, contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 },
                 trailingIcon = {
-                    AnimatedVisibility(visible = uiState.searchQuery.isNotBlank(), enter = fadeIn(), exit = fadeOut()) {
-                        IconButton(onClick = { vm.onSearchChange("") }) {
+                    AnimatedVisibility(visible = searchValue.isNotBlank(), enter = fadeIn(), exit = fadeOut()) {
+                        IconButton(onClick = { onSearchValueChange("") }) {
                             Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.recipe_search_clear),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -175,34 +217,65 @@ fun RecipeScreen() {
                 )
             )
 
-            if (uiState.recipes.isEmpty()) {
-                EmptyState(hasSearch = uiState.searchQuery.isNotBlank(), query = uiState.searchQuery)
+            if (selectedTab == 0) {
+                if (uiState.recipes.isEmpty()) {
+                    EmptyState(hasSearch = uiState.searchQuery.isNotBlank(), query = uiState.searchQuery)
+                } else {
+                    LazyColumn(
+                        contentPadding      = PaddingValues(start = Spacing.lg, top = Spacing.xs, end = Spacing.lg, bottom = 96.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(uiState.recipes, key = { it.id }) { recipe ->
+                            RecipeCard(
+                                recipe                = recipe,
+                                onAddToToday          = { vm.addToToday(recipe) },
+                                onAddToTodayWithGrams = { grams -> vm.addToTodayWithGrams(recipe, grams) },
+                                onToggleFavorite      = { vm.toggleFavorite(recipe) },
+                                onDelete = {
+                                    vm.deleteRecipe(recipe)
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message     = String.format(recipeDeletedFmt, recipe.name),
+                                            actionLabel = undoLabel,
+                                            duration    = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            vm.addRecipe(recipe.copy(id = 0))
+                                        }
+                                    }
+                                },
+                                onEdit = { editingRecipe = recipe }
+                            )
+                        }
+                    }
+                }
             } else {
-                LazyColumn(
-                    contentPadding      = PaddingValues(start = Spacing.lg, top = Spacing.xs, end = Spacing.lg, bottom = 96.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(uiState.recipes, key = { it.id }) { recipe ->
-                        RecipeCard(
-                            recipe                = recipe,
-                            onAddToToday          = { vm.addToToday(recipe) },
-                            onAddToTodayWithGrams = { grams -> vm.addToTodayWithGrams(recipe, grams) },
-                            onToggleFavorite      = { vm.toggleFavorite(recipe) },
-                            onDelete = {
-                                vm.deleteRecipe(recipe)
-                                scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        message     = String.format(recipeDeletedFmt, recipe.name),
-                                        actionLabel = undoLabel,
-                                        duration    = SnackbarDuration.Short
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        vm.addRecipe(recipe.copy(id = 0))
+                if (productsUiState.products.isEmpty()) {
+                    ProductsEmptyState(
+                        hasSearch = productsUiState.searchQuery.isNotBlank(),
+                        query     = productsUiState.searchQuery,
+                        onScan    = onScanBarcode
+                    )
+                } else {
+                    LazyColumn(
+                        contentPadding      = PaddingValues(start = Spacing.lg, top = Spacing.xs, end = Spacing.lg, bottom = 96.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(productsUiState.products, key = { it.id }) { product ->
+                            ProductCard(
+                                product        = product,
+                                onAddWithGrams = { grams -> vm.addProductToTodayWithGrams(product, grams) },
+                                onDelete = {
+                                    vm.deleteProduct(product)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            message  = String.format(productDeletedFmt, product.name),
+                                            duration = SnackbarDuration.Short
+                                        )
                                     }
                                 }
-                            },
-                            onEdit = { editingRecipe = recipe }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -500,6 +573,192 @@ private fun WeightPickerDialog(
     )
 }
 
+// ─── Source chip ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun SourceChip(source: String) {
+    val (label, color) = when (source) {
+        FoodItemSource.FATSECRET.name -> "FatSecret" to ProteinColor
+        FoodItemSource.USDA.name      -> "USDA"      to CarbColor
+        else                          -> "Manual"    to TextTertiary
+    }
+    Surface(shape = AppShapeXl, color = color.copy(alpha = 0.12f)) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 2.dp),
+            style    = MaterialTheme.typography.labelSmall,
+            color    = color
+        )
+    }
+}
+
+// ─── Products empty state ─────────────────────────────────────────────────────
+
+@Composable
+private fun ProductsEmptyState(hasSearch: Boolean, query: String, onScan: () -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+            modifier            = Modifier.padding(Spacing.xxxl)
+        ) {
+            Icon(
+                imageVector        = if (hasSearch) Icons.Filled.SearchOff else Icons.Filled.QrCodeScanner,
+                contentDescription = null,
+                modifier           = Modifier.size(48.dp),
+                tint               = TextTertiary.copy(alpha = 0.4f)
+            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                Text(
+                    text  = if (hasSearch) stringResource(R.string.recipe_no_results, query)
+                            else stringResource(R.string.products_empty_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (!hasSearch) {
+                    Text(
+                        text  = stringResource(R.string.products_empty_message),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextTertiary
+                    )
+                    Spacer(Modifier.height(Spacing.sm))
+                    FilledTonalButton(onClick = onScan) {
+                        Icon(Icons.Filled.QrCodeScanner, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(Spacing.xs))
+                        Text(stringResource(R.string.scanner_title))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Product card ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun ProductCard(
+    product: FoodItemEntity,
+    onAddWithGrams: (Float) -> Unit,
+    onDelete: () -> Unit
+) {
+    var showWeightPicker by remember { mutableStateOf(false) }
+
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange  = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false
+        },
+        positionalThreshold = { it * 0.38f }
+    )
+
+    if (showWeightPicker) {
+        WeightPickerDialog(
+            recipe    = product,
+            onConfirm = { grams -> showWeightPicker = false; onAddWithGrams(grams) },
+            onDismiss = { showWeightPicker = false }
+        )
+    }
+
+    SwipeToDismissBox(
+        state                       = dismissState,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            val fraction = dismissState.progress
+            val visible  = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(MaterialTheme.shapes.large)
+                    .background(
+                        MaterialTheme.colorScheme.errorContainer.copy(
+                            alpha = if (visible) (fraction * 2f).coerceIn(0f, 1f) else 0f
+                        )
+                    )
+                    .padding(end = Spacing.lg),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete),
+                    tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
+            }
+        }
+    ) {
+        ElevatedCard(
+            modifier  = Modifier.fillMaxWidth(),
+            shape     = MaterialTheme.shapes.large,
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = Spacing.sm)) {
+                        Text(
+                            text     = product.name,
+                            style    = MaterialTheme.typography.headlineMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color    = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (product.brand != null) {
+                            Text(
+                                text  = product.brand,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.height(Spacing.xs))
+                        Row(
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        ) {
+                            Icon(Icons.Filled.LocalFireDepartment, contentDescription = null,
+                                modifier = Modifier.size(13.dp), tint = MaterialTheme.macroColors.calories)
+                            Text(
+                                text  = "${product.kcalPerServing} kcal ${stringResource(R.string.recipe_per_100g_suffix)}",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.macroColors.calories
+                            )
+                            if (product.usageCount > 0) {
+                                Text(
+                                    text  = "· ${product.usageCount}×",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextTertiary
+                                )
+                            }
+                        }
+                    }
+                    FilledTonalButton(
+                        onClick        = { showWeightPicker = true },
+                        contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
+                        modifier       = Modifier.height(36.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(Spacing.xs))
+                        Text(stringResource(R.string.action_add), style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+
+                Spacer(Modifier.height(Spacing.md))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment     = Alignment.CenterVertically
+                ) {
+                    SourceChip(product.source)
+                    MacroPill(MacroType.PROTEIN, "${product.protein.toInt()}g")
+                    MacroPill(MacroType.CARBS,   "${product.carbs.toInt()}g")
+                    MacroPill(MacroType.FAT,      "${product.fat.toInt()}g")
+                }
+            }
+        }
+    }
+}
+
 // ─── Full-screen creation / edit dialog ────────────────────────────────────────
 
 @Composable
@@ -510,8 +769,18 @@ internal fun RecipeCreationDialog(
     onSave: (FoodItemEntity) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val isEditing    = editingRecipe != null
-    var selectedTab  by remember { mutableIntStateOf(0) }
+    val isEditing   = editingRecipe != null
+    var selectedTab by remember { mutableIntStateOf(0) }
+
+    // AI chat state lifted here so it survives tab switches
+    val greeting          = stringResource(R.string.recipe_ai_greeting)
+    var aiMessages        by remember { mutableStateOf(listOf(AiMsg(greeting, isUser = false, isInitial = true))) }
+    var aiInputText       by remember { mutableStateOf("") }
+    var aiIsLoading       by remember { mutableStateOf(false) }
+    var aiExtractedRecipe by remember { mutableStateOf<MacroResult?>(null) }
+    var aiName            by remember { mutableStateOf("") }
+    var aiNotes           by remember { mutableStateOf("") }
+    var aiPer100g         by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -562,7 +831,24 @@ internal fun RecipeCreationDialog(
                     if (selectedTab == 0 || isEditing) {
                         ManualTab(initialValues = initialValues, editingRecipe = editingRecipe, onSave = onSave)
                     } else {
-                        AiTab(geminiService = geminiService, onSave = onSave)
+                        AiTab(
+                            geminiService           = geminiService,
+                            messages                = aiMessages,
+                            onMessagesChange        = { aiMessages = it },
+                            inputText               = aiInputText,
+                            onInputTextChange       = { aiInputText = it },
+                            isLoading               = aiIsLoading,
+                            onIsLoadingChange       = { aiIsLoading = it },
+                            extractedRecipe         = aiExtractedRecipe,
+                            onExtractedRecipeChange = { aiExtractedRecipe = it },
+                            aiName                  = aiName,
+                            onAiNameChange          = { aiName = it },
+                            aiNotes                 = aiNotes,
+                            onAiNotesChange         = { aiNotes = it },
+                            aiPer100g               = aiPer100g,
+                            onAiPer100gChange       = { aiPer100g = it },
+                            onSave                  = onSave
+                        )
                     }
                 }
             }
@@ -925,21 +1211,30 @@ private fun ManualTab(
 // ─── AI tab ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun AiTab(geminiService: GeminiService, onSave: (FoodItemEntity) -> Unit) {
-    val greeting        = stringResource(R.string.recipe_ai_greeting)
-    val rateLimitMsg    = stringResource(R.string.vm_chat_error_rate_limit)
-    val aiErrorFmt      = stringResource(R.string.recipe_ai_error)
-    val aiErrorRetry    = stringResource(R.string.recipe_ai_error_retry)
-    var messages        by remember { mutableStateOf(listOf(AiMsg(greeting, isUser = false, isInitial = true))) }
-    var inputText       by remember { mutableStateOf("") }
-    var isLoading       by remember { mutableStateOf(false) }
-    var extractedRecipe by remember { mutableStateOf<MacroResult?>(null) }
-    var aiName          by remember { mutableStateOf("") }
-    var aiNotes         by remember { mutableStateOf("") }
-    var aiPer100g       by remember { mutableStateOf(false) }
-    val haptics        = LocalHapticFeedback.current
-    val scope          = rememberCoroutineScope()
-    val listState      = rememberLazyListState()
+private fun AiTab(
+    geminiService: GeminiService,
+    messages: List<AiMsg>,
+    onMessagesChange: (List<AiMsg>) -> Unit,
+    inputText: String,
+    onInputTextChange: (String) -> Unit,
+    isLoading: Boolean,
+    onIsLoadingChange: (Boolean) -> Unit,
+    extractedRecipe: MacroResult?,
+    onExtractedRecipeChange: (MacroResult?) -> Unit,
+    aiName: String,
+    onAiNameChange: (String) -> Unit,
+    aiNotes: String,
+    onAiNotesChange: (String) -> Unit,
+    aiPer100g: Boolean,
+    onAiPer100gChange: (Boolean) -> Unit,
+    onSave: (FoodItemEntity) -> Unit
+) {
+    val rateLimitMsg = stringResource(R.string.vm_chat_error_rate_limit)
+    val aiErrorFmt   = stringResource(R.string.recipe_ai_error)
+    val aiErrorRetry = stringResource(R.string.recipe_ai_error_retry)
+    val haptics      = LocalHapticFeedback.current
+    val scope        = rememberCoroutineScope()
+    val listState    = rememberLazyListState()
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
@@ -948,30 +1243,31 @@ private fun AiTab(geminiService: GeminiService, onSave: (FoodItemEntity) -> Unit
     fun send() {
         val text = inputText.trim()
         if (text.isBlank() || isLoading) return
-        messages   = messages + AiMsg(text, isUser = true)
-        inputText  = ""
-        isLoading  = true
+        val updatedMessages = messages + AiMsg(text, isUser = true)
+        onMessagesChange(updatedMessages)
+        onInputTextChange("")
+        onIsLoadingChange(true)
         scope.launch {
-            val history = messages
+            val history = updatedMessages
                 .filter { !it.isInitial }
                 .map { (if (it.isUser) "user" else "model") to it.text }
             geminiService.chatRecipe(history)
                 .onSuccess { response ->
                     val display = cleanAiText(response)
-                    messages = messages + AiMsg(display, isUser = false)
+                    onMessagesChange(updatedMessages + AiMsg(display, isUser = false))
                     extractRecipe(response)?.let { recipe ->
-                        extractedRecipe = recipe
-                        if (aiName.isBlank()) aiName = recipe.name
+                        onExtractedRecipeChange(recipe)
+                        if (aiName.isBlank()) onAiNameChange(recipe.name)
                     }
                 }
                 .onFailure { e ->
-                    messages = messages + AiMsg(
+                    onMessagesChange(updatedMessages + AiMsg(
                         if (e is RateLimitException) rateLimitMsg
                         else String.format(aiErrorFmt, e.message ?: aiErrorRetry),
                         isUser = false
-                    )
+                    ))
                 }
-            isLoading = false
+            onIsLoadingChange(false)
         }
     }
 
@@ -1028,7 +1324,7 @@ private fun AiTab(geminiService: GeminiService, onSave: (FoodItemEntity) -> Unit
                                 fontWeight = FontWeight.SemiBold)
                         }
                         OutlinedTextField(
-                            value = aiName, onValueChange = { aiName = it },
+                            value = aiName, onValueChange = onAiNameChange,
                             label = { Text(stringResource(R.string.recipe_ai_name_field)) }, singleLine = true,
                             modifier = Modifier.fillMaxWidth(), shape = AppShapeMd
                         )
@@ -1052,10 +1348,10 @@ private fun AiTab(geminiService: GeminiService, onSave: (FoodItemEntity) -> Unit
                                     color = TextTertiary
                                 )
                             }
-                            Switch(checked = aiPer100g, onCheckedChange = { aiPer100g = it })
+                            Switch(checked = aiPer100g, onCheckedChange = onAiPer100gChange)
                         }
                         OutlinedTextField(
-                            value = aiNotes, onValueChange = { aiNotes = it },
+                            value = aiNotes, onValueChange = onAiNotesChange,
                             label = { Text(stringResource(R.string.recipe_notes_ingredients_label)) },
                             maxLines = 3, modifier = Modifier.fillMaxWidth(), shape = AppShapeMd
                         )
@@ -1096,7 +1392,7 @@ private fun AiTab(geminiService: GeminiService, onSave: (FoodItemEntity) -> Unit
         ) {
             OutlinedTextField(
                 value         = inputText,
-                onValueChange = { inputText = it },
+                onValueChange = onInputTextChange,
                 modifier      = Modifier.weight(1f),
                 placeholder   = { Text(stringResource(R.string.recipe_ai_input_hint)) },
                 maxLines      = 3,
