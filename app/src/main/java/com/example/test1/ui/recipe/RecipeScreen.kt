@@ -780,10 +780,13 @@ internal fun RecipeCreationDialog(
     var aiExtractedRecipe by remember { mutableStateOf<MacroResult?>(null) }
     var aiSummaryText     by remember { mutableStateOf("") }
 
-    // Auto-navigate to Manual tab when AI detects a recipe; snapshot the summary text for Notes
+    // Auto-navigate to Manual tab when AI detects a recipe; extract only ingredient list lines for Notes
     LaunchedEffect(aiExtractedRecipe) {
         if (aiExtractedRecipe != null) {
-            aiSummaryText = aiMessages.lastOrNull { !it.isUser }?.text?.trim() ?: ""
+            val fullText = aiMessages.lastOrNull { !it.isUser }?.text?.trim() ?: ""
+            aiSummaryText = fullText.lines()
+                .filter { it.trimStart().startsWith("- ") }
+                .joinToString("\n")
             selectedTab = 0
         }
     }
