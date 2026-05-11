@@ -38,7 +38,7 @@ No Hilt. `MacroApp` (Application subclass) lazily initialises all singletons —
 |---|---|
 | `data/db/entity/` | Room entities: `FoodEntryEntity`, `RecipeEntity`, `DailyGoalEntity` |
 | `data/db/dao/` | Room DAOs (all queries return `Flow`) |
-| `data/db/AppDatabase` | Singleton Room DB, `fallbackToDestructiveMigration()` |
+| `data/db/AppDatabase` | Singleton Room DB with explicit, non-destructive migrations |
 | `data/api/GeminiService` | Google AI SDK call; returns `Result<MacroResult>`. Includes exponential backoff on rate limits (HTTP 429 / RESOURCE_EXHAUSTED). |
 | `data/api/MacroResult` | `@Serializable` data class for the JSON the AI returns |
 | `data/repository/` | Thin wrappers over DAOs and the API service |

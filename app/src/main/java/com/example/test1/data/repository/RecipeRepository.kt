@@ -8,7 +8,10 @@ class RecipeRepository(private val dao: FoodItemDao) {
     fun getAllRecipes(): Flow<List<FoodItemEntity>> = dao.getAllFoodItems()
 
     fun searchRecipes(query: String): Flow<List<FoodItemEntity>> =
-        if (query.isBlank()) dao.getAllFoodItems() else dao.searchFoodItems(query)
+        if (query.isBlank()) dao.getRecipes() else dao.searchRecipeItems(query)
+
+    fun searchProducts(query: String): Flow<List<FoodItemEntity>> =
+        if (query.isBlank()) dao.getProducts() else dao.searchProductItems(query)
 
     suspend fun insert(recipe: FoodItemEntity): Long = dao.insert(recipe)
 

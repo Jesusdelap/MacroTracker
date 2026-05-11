@@ -17,19 +17,30 @@ data class RecipeUiState(
     val searchQuery: String = ""
 )
 
+data class ProductsUiState(
+    val products: List<FoodItemEntity> = emptyList(),
+    val searchQuery: String = ""
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class RecipeViewModel(
     private val recipeRepository: RecipeRepository,
     private val foodRepository: FoodRepository
 ) : ViewModel() {
 
-    private val _query = MutableStateFlow("")
+    private val _query        = MutableStateFlow("")
+    private val _productQuery = MutableStateFlow("")
 
     val uiState: StateFlow<RecipeUiState> = _query
         .flatMapLatest { q -> recipeRepository.searchRecipes(q).map { RecipeUiState(it, q) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecipeUiState())
 
-    fun onSearchChange(query: String) { _query.value = query }
+    val productsUiState: StateFlow<ProductsUiState> = _productQuery
+        .flatMapLatest { q -> recipeRepository.searchProducts(q).map { ProductsUiState(it, q) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProductsUiState())
+
+    fun onSearchChange(query: String)        { _query.value = query }
+    fun onProductSearchChange(query: String) { _productQuery.value = query }
 
     fun addRecipe(recipe: FoodItemEntity) {
         viewModelScope.launch { recipeRepository.insert(recipe) }
@@ -41,6 +52,10 @@ class RecipeViewModel(
 
     fun deleteRecipe(recipe: FoodItemEntity) {
         viewModelScope.launch { recipeRepository.delete(recipe) }
+    }
+
+    fun deleteProduct(product: FoodItemEntity) {
+        viewModelScope.launch { recipeRepository.delete(product) }
     }
 
     fun toggleFavorite(recipe: FoodItemEntity) {
@@ -81,6 +96,26 @@ class RecipeViewModel(
                 )
             )
             recipeRepository.update(recipe.copy(usageCount = recipe.usageCount + 1, lastUsedAt = System.currentTimeMillis()))
+        }
+    }
+
+    fun addProductToTodayWithGrams(product: FoodItemEntity, grams: Float) {
+        viewModelScope.launch {
+            val today       = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val ratio       = grams / 100f
+            val displayName = listOfNotNull(product.name.trim(), product.brand?.let { "($it)" }).joinToString(" ")
+            foodRepository.insert(
+                FoodEntryEntity(
+                    date        = today,
+                    name        = product.name.trim(),
+                    kcal        = (product.kcalPerServing * ratio).toInt(),
+                    protein     = product.protein * ratio,
+                    carbs       = product.carbs * ratio,
+                    fat         = product.fat * ratio,
+                    description = "Producto: $displayName (${grams.toInt()}g)"
+                )
+            )
+            recipeRepository.update(product.copy(usageCount = product.usageCount + 1, lastUsedAt = System.currentTimeMillis()))
         }
     }
 }

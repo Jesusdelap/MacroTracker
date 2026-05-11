@@ -33,6 +33,13 @@ val darkMacroColors = MacroColors(
     fat      = FatColor,
 )
 
+val lightMacroColors = MacroColors(
+    calories = Color(0xFFB85A1E),
+    protein  = Color(0xFF883A7A),
+    carbs    = Color(0xFF1F6E87),
+    fat      = Color(0xFF7D5A10),
+)
+
 /** staticCompositionLocalOf: los colores no cambian en runtime → sin recomposición extra */
 val LocalMacroColors = staticCompositionLocalOf { darkMacroColors }
 

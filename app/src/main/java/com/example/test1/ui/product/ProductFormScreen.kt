@@ -1,5 +1,6 @@
 package com.example.test1.ui.product
 
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -51,9 +52,9 @@ fun ProductFormScreen(
     var name    by remember { mutableStateOf(barcodeResult?.name ?: "") }
     var brand   by remember { mutableStateOf(barcodeResult?.brand ?: "") }
     var kcal    by remember { mutableStateOf(barcodeResult?.kcalPer100g?.toString() ?: "") }
-    var protein by remember { mutableStateOf(barcodeResult?.proteinPer100g?.let { "%.1f".format(it) } ?: "") }
-    var carbs   by remember { mutableStateOf(barcodeResult?.carbsPer100g?.let { "%.1f".format(it) } ?: "") }
-    var fat     by remember { mutableStateOf(barcodeResult?.fatPer100g?.let { "%.1f".format(it) } ?: "") }
+    var protein by remember { mutableStateOf(barcodeResult?.proteinPer100g?.let { it.roundToInt().toString() } ?: "") }
+    var carbs   by remember { mutableStateOf(barcodeResult?.carbsPer100g?.let { it.roundToInt().toString() } ?: "") }
+    var fat     by remember { mutableStateOf(barcodeResult?.fatPer100g?.let { it.roundToInt().toString() } ?: "") }
     var showWeightPicker by remember { mutableStateOf(false) }
 
     val entity by remember(name, brand, kcal, protein, carbs, fat) {
@@ -275,9 +276,9 @@ private fun ProductWeightDialog(
                 if (gramsF != null && gramsF > 0f) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         MacroPill(MacroType.CALORIES, "${(entity.kcalPerServing * ratio).toInt()}",   modifier = Modifier.weight(1f))
-                        MacroPill(MacroType.PROTEIN,  "${"%.1f".format(entity.protein * ratio)}g",   modifier = Modifier.weight(1f))
-                        MacroPill(MacroType.CARBS,    "${"%.1f".format(entity.carbs   * ratio)}g",   modifier = Modifier.weight(1f))
-                        MacroPill(MacroType.FAT,      "${"%.1f".format(entity.fat     * ratio)}g",   modifier = Modifier.weight(1f))
+                        MacroPill(MacroType.PROTEIN,  "${(entity.protein * ratio).roundToInt()}g",   modifier = Modifier.weight(1f))
+                        MacroPill(MacroType.CARBS,    "${(entity.carbs   * ratio).roundToInt()}g",   modifier = Modifier.weight(1f))
+                        MacroPill(MacroType.FAT,      "${(entity.fat     * ratio).roundToInt()}g",   modifier = Modifier.weight(1f))
                     }
                 }
             }

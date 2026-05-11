@@ -1,11 +1,12 @@
 package com.example.test1.data.api
 
 import kotlinx.serialization.Serializable
+import kotlin.math.roundToInt
 
 @Serializable
 data class IngredientMacro(
     val name: String,
-    val cal: Int,
+    val cal: Double,
     val prot: Float,
     val carb: Float,
     val fat: Float
@@ -25,7 +26,7 @@ data class MacroResult(
 @Serializable
 data class FoodChatResponse(
     val name: String? = null,
-    val cal: Int? = null,
+    val cal: Double? = null,
     val prot: Float? = null,
     val carb: Float? = null,
     val fat: Float? = null,
@@ -36,6 +37,6 @@ data class FoodChatResponse(
 ) {
     val asMacroResult: MacroResult?
         get() = if (cal != null && prot != null && carb != null && fat != null)
-            MacroResult(name ?: "", cal, prot, carb, fat, ingredients ?: emptyList(), fromRecipe)
+            MacroResult(name ?: "", cal.roundToInt(), prot, carb, fat, ingredients ?: emptyList(), fromRecipe)
         else null
 }

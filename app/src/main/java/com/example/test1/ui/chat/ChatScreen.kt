@@ -5,7 +5,12 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,10 +37,13 @@ import com.example.test1.data.db.entity.FoodItemEntity
 import com.example.test1.ui.recipe.RecipeCreationDialog
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -43,6 +51,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
@@ -126,6 +136,22 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
         if (uiState.messages.isNotEmpty()) listState.animateScrollToItem(uiState.messages.size - 1)
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val undoLabel = stringResource(R.string.action_undo)
+    val discardedText = stringResource(R.string.vm_chat_entry_discarded)
+    LaunchedEffect(uiState.pendingUndo) {
+        uiState.pendingUndo ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message     = discardedText,
+            actionLabel = undoLabel,
+            duration    = SnackbarDuration.Short
+        )
+        when (result) {
+            SnackbarResult.ActionPerformed -> vm.undoDiscard()
+            SnackbarResult.Dismissed       -> vm.dismissUndo()
+        }
+    }
+
     // ── Camera / gallery launchers ──────────────────────────────────────────
     var tempPhotoUri   by remember { mutableStateOf<android.net.Uri?>(null) }
     var showSourceMenu by remember { mutableStateOf(false) }
@@ -176,6 +202,7 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
     val actionsEnabled = !uiState.isLoading && uiState.editingEntry == null
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column(
                 modifier = Modifier
@@ -313,66 +340,172 @@ fun ChatScreen(onNavigateToSettings: () -> Unit) {
                     }
                 } else {
                     Surface(color = MaterialTheme.colorScheme.background) {
-                        Row(
-                            modifier          = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box {
-                                IconButton(
-                                    onClick = { showSourceMenu = true },
-                                    enabled = !uiState.isLoading && uiState.editingEntry == null
-                                ) {
-                                    Icon(Icons.Filled.PhotoCamera, contentDescription = stringResource(R.string.chat_cd_photo))
-                                }
-                                DropdownMenu(
-                                    expanded         = showSourceMenu,
-                                    onDismissRequest = { showSourceMenu = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text    = { Text(stringResource(R.string.chat_source_camera)) },
-                                        onClick = { showSourceMenu = false; launchCamera() }
-                                    )
-                                    DropdownMenuItem(
-                                        text    = { Text(stringResource(R.string.chat_source_gallery)) },
-                                        onClick = {
-                                            showSourceMenu = false
-                                            galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                                        }
-                                    )
-                                }
+                        Column {
+                            // Photo attachment preview
+                            uiState.pendingImageUri?.let { uri ->
+                                AttachmentPreview(uri = uri, onRemove = vm::clearPendingImage)
                             }
 
-                            OutlinedTextField(
-                                value         = uiState.inputText,
-                                onValueChange = vm::onInputChange,
-                                modifier      = Modifier.weight(1f),
-                                placeholder   = {
-                                    Text(
-                                        if (uiState.editingEntry != null) stringResource(R.string.chat_input_hint_edit) else stringResource(R.string.chat_input_hint),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                },
-                                textStyle       = MaterialTheme.typography.bodyMedium,
-                                shape           = AppShapeLg,
-                                maxLines        = 3,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                                keyboardActions = KeyboardActions(onSend = { vm.sendMessage(); keyboard?.hide() }),
-                                enabled         = !uiState.isLoading
-                            )
-
-                            Spacer(Modifier.width(Spacing.xs))
-                            FilledIconButton(
-                                onClick  = { vm.sendMessage(); keyboard?.hide() },
-                                enabled  = uiState.inputText.isNotBlank() && !uiState.isLoading,
-                                modifier = Modifier.size(48.dp)
+                            Row(
+                                modifier          = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.chat_cd_send))
+                                Box {
+                                    IconButton(
+                                        onClick = { showSourceMenu = true },
+                                        enabled = !uiState.isLoading && uiState.editingEntry == null
+                                    ) {
+                                        Icon(Icons.Filled.PhotoCamera, contentDescription = stringResource(R.string.chat_cd_photo))
+                                    }
+                                    DropdownMenu(
+                                        expanded         = showSourceMenu,
+                                        onDismissRequest = { showSourceMenu = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text    = { Text(stringResource(R.string.chat_source_camera)) },
+                                            onClick = { showSourceMenu = false; launchCamera() }
+                                        )
+                                        DropdownMenuItem(
+                                            text    = { Text(stringResource(R.string.chat_source_gallery)) },
+                                            onClick = {
+                                                showSourceMenu = false
+                                                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                            }
+                                        )
+                                    }
+                                }
+
+                                OutlinedTextField(
+                                    value         = uiState.inputText,
+                                    onValueChange = vm::onInputChange,
+                                    modifier      = Modifier.weight(1f),
+                                    placeholder   = {
+                                        Text(
+                                            if (uiState.editingEntry != null) stringResource(R.string.chat_input_hint_edit) else stringResource(R.string.chat_input_hint),
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    },
+                                    textStyle       = MaterialTheme.typography.bodyMedium,
+                                    shape           = AppShapeLg,
+                                    maxLines        = 3,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                    keyboardActions = KeyboardActions(onSend = { vm.sendMessage(); keyboard?.hide() }),
+                                    enabled         = !uiState.isLoading
+                                )
+
+                                Spacer(Modifier.width(Spacing.xs))
+                                FilledIconButton(
+                                    onClick  = { vm.sendMessage(); keyboard?.hide() },
+                                    enabled  = (uiState.inputText.isNotBlank() || uiState.pendingImageUri != null) && !uiState.isLoading,
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.chat_cd_send))
+                                }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageThumbnailBubble(uri: Uri) {
+    val context = LocalContext.current
+    val bitmap by produceState<Bitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+                    ?.let { bmp ->
+                        val maxPx = 512
+                        if (bmp.width > maxPx || bmp.height > maxPx) {
+                            val scale = maxPx.toFloat() / maxOf(bmp.width, bmp.height)
+                            Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true)
+                        } else bmp
+                    }
+            }.getOrNull()
+        }
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap             = bitmap!!.asImageBitmap(),
+            contentDescription = null,
+            contentScale       = ContentScale.Crop,
+            modifier           = Modifier
+                .size(width = 180.dp, height = 135.dp)
+                .clip(RoundedCornerShape(12.dp))
+        )
+    } else {
+        Box(
+            modifier         = Modifier
+                .size(width = 180.dp, height = 135.dp)
+                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+        }
+    }
+}
+
+@Composable
+private fun AttachmentPreview(uri: Uri, onRemove: () -> Unit) {
+    val context = LocalContext.current
+    val bitmap by produceState<Bitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+                    ?.let { bmp ->
+                        val maxPx = 256
+                        if (bmp.width > maxPx || bmp.height > maxPx) {
+                            val scale = maxPx.toFloat() / maxOf(bmp.width, bmp.height)
+                            Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true)
+                        } else bmp
+                    }
+            }.getOrNull()
+        }
+    }
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
+        Row(
+            modifier              = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            val imageSize = 56.dp
+            if (bitmap != null) {
+                Image(
+                    bitmap             = bitmap!!.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = Modifier.size(imageSize).clip(AppShapeSm)
+                )
+            } else {
+                Box(
+                    modifier         = Modifier
+                        .size(imageSize)
+                        .background(MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.15f), AppShapeSm),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
+            }
+            Text(
+                stringResource(R.string.chat_photo_label),
+                style    = MaterialTheme.typography.bodySmall,
+                color    = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.action_cancel),
+                    modifier           = Modifier.size(16.dp),
+                    tint               = MaterialTheme.colorScheme.onSecondaryContainer
+                )
             }
         }
     }
@@ -398,30 +531,47 @@ private fun ChatBubble(
         horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
     ) {
         if (msg.isUser) {
-            Surface(
-                color = if (msg.isImageMessage) MaterialTheme.colorScheme.secondaryContainer
-                        else                    MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(16, 4, 16, 16)
-            ) {
-                Row(
-                    modifier              = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment     = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                ) {
-                    if (msg.isImageMessage) {
-                        Icon(
-                            Icons.Filled.PhotoCamera,
-                            contentDescription = null,
-                            modifier           = Modifier.size(16.dp),
-                            tint               = MaterialTheme.colorScheme.onSecondaryContainer
+            Column(horizontalAlignment = Alignment.End) {
+                msg.imageUri?.let { uri ->
+                    ImageThumbnailBubble(uri = uri)
+                    Spacer(Modifier.height(Spacing.xs))
+                }
+                if (msg.text.isNotBlank() && !(msg.isImageMessage && msg.imageUri != null && msg.text == stringResource(R.string.chat_photo_label))) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(16, 4, 16, 16)
+                    ) {
+                        Text(
+                            msg.text,
+                            style    = MaterialTheme.typography.bodyMedium,
+                            color    = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                         )
                     }
-                    Text(
-                        msg.text,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (msg.isImageMessage) MaterialTheme.colorScheme.onSecondaryContainer
-                                else                    MaterialTheme.colorScheme.onPrimary
-                    )
+                } else if (msg.isImageMessage && msg.imageUri == null) {
+                    // Mensaje de imagen cargado desde DB (sin URI en memoria)
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(16, 4, 16, 16)
+                    ) {
+                        Row(
+                            modifier          = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        ) {
+                            Icon(
+                                Icons.Filled.PhotoCamera,
+                                contentDescription = null,
+                                modifier           = Modifier.size(16.dp),
+                                tint               = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                msg.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
                 }
             }
         } else {
@@ -446,10 +596,10 @@ private fun ChatBubble(
                                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                                         modifier              = Modifier.fillMaxWidth()
                                     ) {
-                                        MacroPill(MacroType.CALORIES, "${ing.cal}",   modifier = Modifier.weight(1f))
-                                        MacroPill(MacroType.PROTEIN,  "${ing.prot}g", modifier = Modifier.weight(1f))
-                                        MacroPill(MacroType.CARBS,    "${ing.carb}g", modifier = Modifier.weight(1f))
-                                        MacroPill(MacroType.FAT,      "${ing.fat}g",  modifier = Modifier.weight(1f))
+                                        MacroPill(MacroType.CALORIES, "${ing.cal.roundToInt()}",   modifier = Modifier.weight(1f))
+                                        MacroPill(MacroType.PROTEIN,  "${ing.prot.roundToInt()}g", modifier = Modifier.weight(1f))
+                                        MacroPill(MacroType.CARBS,    "${ing.carb.roundToInt()}g", modifier = Modifier.weight(1f))
+                                        MacroPill(MacroType.FAT,      "${ing.fat.roundToInt()}g",  modifier = Modifier.weight(1f))
                                     }
                                 }
                                 Spacer(Modifier.height(Spacing.sm))
@@ -473,9 +623,9 @@ private fun ChatBubble(
                                             modifier              = Modifier.fillMaxWidth()
                                         ) {
                                             MacroPill(MacroType.CALORIES, "${macro.cal}",   modifier = Modifier.weight(1f))
-                                            MacroPill(MacroType.PROTEIN,  "${macro.prot}g", modifier = Modifier.weight(1f))
-                                            MacroPill(MacroType.CARBS,    "${macro.carb}g", modifier = Modifier.weight(1f))
-                                            MacroPill(MacroType.FAT,      "${macro.fat}g",  modifier = Modifier.weight(1f))
+                                            MacroPill(MacroType.PROTEIN,  "${macro.prot.roundToInt()}g", modifier = Modifier.weight(1f))
+                                            MacroPill(MacroType.CARBS,    "${macro.carb.roundToInt()}g", modifier = Modifier.weight(1f))
+                                            MacroPill(MacroType.FAT,      "${macro.fat.roundToInt()}g",  modifier = Modifier.weight(1f))
                                         }
                                     }
                                 }
@@ -486,9 +636,9 @@ private fun ChatBubble(
                                     modifier              = Modifier.fillMaxWidth()
                                 ) {
                                     MacroPill(MacroType.CALORIES, "${macro.cal}",   modifier = Modifier.weight(1f))
-                                    MacroPill(MacroType.PROTEIN,  "${macro.prot}g", modifier = Modifier.weight(1f))
-                                    MacroPill(MacroType.CARBS,    "${macro.carb}g", modifier = Modifier.weight(1f))
-                                    MacroPill(MacroType.FAT,      "${macro.fat}g",  modifier = Modifier.weight(1f))
+                                    MacroPill(MacroType.PROTEIN,  "${macro.prot.roundToInt()}g", modifier = Modifier.weight(1f))
+                                    MacroPill(MacroType.CARBS,    "${macro.carb.roundToInt()}g", modifier = Modifier.weight(1f))
+                                    MacroPill(MacroType.FAT,      "${macro.fat.roundToInt()}g",  modifier = Modifier.weight(1f))
                                 }
                             }
 
@@ -632,7 +782,7 @@ private fun EditEntrySheet(
 
     val editIngredients = remember {
         mutableStateListOf(*macro.ingredients.map { ing ->
-            EditIngredient(name = ing.name, cal = ing.cal.toString(), prot = ing.prot.toString(), carb = ing.carb.toString(), fat = ing.fat.toString())
+            EditIngredient(name = ing.name, cal = ing.cal.roundToInt().toString(), prot = ing.prot.toString(), carb = ing.carb.toString(), fat = ing.fat.toString())
         }.toTypedArray())
     }
 
@@ -713,7 +863,7 @@ private fun EditEntrySheet(
                         val ingredientMacros = editIngredients.mapIndexed { i, ing ->
                             IngredientMacro(
                                 name = ing.name.trim().ifBlank { String.format(ingredientDefaultFmt, i + 1) },
-                                cal  = ing.cal.toIntOrNull() ?: ing.calculatedCal,
+                                cal  = (ing.cal.toIntOrNull() ?: ing.calculatedCal).toDouble(),
                                 prot = ing.prot.toFloatOrNull() ?: 0f,
                                 carb = ing.carb.toFloatOrNull() ?: 0f,
                                 fat  = ing.fat.toFloatOrNull() ?: 0f

@@ -71,3 +71,19 @@ internal val PunkOnErrorContainer     = SemanticError
 @Deprecated("Use MacroProtein")  val ProteinColor = MacroProtein
 @Deprecated("Use MacroCarbs")    val CarbColor    = MacroCarbs
 @Deprecated("Use MacroFat")      val FatColor     = MacroFat
+
+// ── Light theme tokens (internal, used only in Theme.kt) ──────────────────────
+internal val LightBackground           = Color(0xFFF6F7FA)
+internal val LightSurface              = Color(0xFFFFFFFF)
+internal val LightSurfaceElevated      = Color(0xFFEEEFF4)
+internal val LightBorder               = Color(0xFFB8BAC4)
+internal val LightBorderSubtle         = Color(0xFFDEDFE7)
+internal val LightPrimary              = Color(0xFF5A50CC)
+internal val LightPrimaryContainer     = Color(0xFFE9E6FF)
+internal val LightOnPrimaryContainer   = Color(0xFF20126F)
+internal val LightSecondaryContainer   = Color(0xFFE2E3EE)
+internal val LightOnSecondaryContainer = Color(0xFF191C22)
+internal val LightOnSurfaceVariant     = Color(0xFF4A4D56)
+internal val LightError                = Color(0xFFB3261E)
+internal val LightErrorContainer       = Color(0xFFFFDAD6)
+internal val LightOnErrorContainer     = Color(0xFF410002)

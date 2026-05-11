@@ -16,8 +16,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.RestaurantMenu
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.test1.MacroApp
 import com.example.test1.R
 import com.example.test1.data.db.entity.FoodEntryEntity
+import com.example.test1.ui.components.MacroItemCard
 import com.example.test1.ui.components.MacroPill
 import com.example.test1.ui.components.MacroProgressRow
 import com.example.test1.ui.theme.*
@@ -45,22 +46,25 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
+fun SummaryScreen(onOpenDrawer: () -> Unit = {}) {
     val app = LocalContext.current.applicationContext as MacroApp
     val vm: SummaryViewModel = viewModel {
         SummaryViewModel(app.foodRepository, app.goalRepository, app.selectedDate)
     }
-    val summary by vm.summary.collectAsState()
+    val summary      by vm.summary.collectAsState()
     val selectedDate by vm.selectedDate.collectAsState()
     var contentVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { contentVisible = true }
 
-    val snackbarHostState  = remember { SnackbarHostState() }
-    val scope              = rememberCoroutineScope()
-    val entryDeletedFmt    = stringResource(R.string.summary_entry_deleted)
-    val undoLabel          = stringResource(R.string.action_undo)
-    val context            = LocalContext.current
-    var showDatePicker     by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope             = rememberCoroutineScope()
+    val entryDeletedFmt   = stringResource(R.string.summary_entry_deleted)
+    val undoLabel         = stringResource(R.string.action_undo)
+    val context           = LocalContext.current
+    var showDatePicker    by remember { mutableStateOf(false) }
+    var totalDrag         by remember { mutableFloatStateOf(0f) }
+
+    val dateDisplay = selectedDate.toDisplayDate(context)
 
     if (showDatePicker) {
         val initialMillis = remember(selectedDate) {
@@ -95,48 +99,81 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
-                        .padding(start = 20.dp, end = Spacing.xs),
+                        .height(52.dp)
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onDragEnd    = { totalDrag = 0f },
+                                onDragCancel = { totalDrag = 0f },
+                                onHorizontalDrag = { _, amount ->
+                                    totalDrag += amount
+                                    if (totalDrag > 80f)       { totalDrag = 0f; vm.goToPreviousDay() }
+                                    else if (totalDrag < -80f) { totalDrag = 0f; vm.goToNextDay() }
+                                }
+                            )
+                        },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        stringResource(R.string.summary_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = onNavigateToSettings) {
+                    // Left: hamburger menu
+                    IconButton(onClick = onOpenDrawer) {
                         Icon(
-                            Icons.Filled.Settings,
-                            contentDescription = stringResource(R.string.summary_settings_cd),
+                            Icons.Filled.Menu,
+                            contentDescription = stringResource(R.string.drawer_menu_cd),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
+                    // Center: date navigation
+                    Row(
+                        modifier              = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = vm::goToPreviousDay) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.summary_prev_day_cd),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Row(
+                            modifier              = Modifier.clickable { showDatePicker = true },
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(dateDisplay, style = MaterialTheme.typography.titleSmall)
+                            Icon(
+                                Icons.Filled.DateRange,
+                                contentDescription = stringResource(R.string.summary_select_date_cd),
+                                modifier = Modifier.size(13.dp),
+                                tint     = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = vm::goToNextDay) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = stringResource(R.string.summary_next_day_cd),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // Right: balance spacer (same width as hamburger)
+                    Box(modifier = Modifier.size(48.dp))
                 }
                 HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
+                    color     = MaterialTheme.colorScheme.outlineVariant,
                     thickness = 0.5.dp
                 )
             }
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
+            modifier       = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = Spacing.xl, bottom = Spacing.xl),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = Spacing.lg, bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.xxl)
         ) {
-            item {
-                DateSelector(
-                    dateDisplay       = selectedDate.toDisplayDate(context),
-                    canGoForward      = true,
-                    onPrevious        = vm::goToPreviousDay,
-                    onNext            = vm::goToNextDay,
-                    onOpenDatePicker  = { showDatePicker = true }
-                )
-            }
-
             item {
                 AnimatedVisibility(
                     visible = contentVisible,
@@ -187,57 +224,6 @@ fun SummaryScreen(onNavigateToSettings: () -> Unit = {}) {
     }
 }
 
-// ── Date selector ─────────────────────────────────────────────────────────────
-
-@Composable
-private fun DateSelector(
-    dateDisplay: String,
-    canGoForward: Boolean,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onOpenDatePicker: () -> Unit
-) {
-    var totalDrag by remember { mutableFloatStateOf(0f) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragEnd    = { totalDrag = 0f },
-                    onDragCancel = { totalDrag = 0f },
-                    onHorizontalDrag = { _, amount ->
-                        totalDrag += amount
-                        if (totalDrag > 80f)  { totalDrag = 0f; onPrevious() }
-                        else if (totalDrag < -80f) { totalDrag = 0f; onNext() }
-                    }
-                )
-            },
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onPrevious) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.summary_prev_day_cd))
-        }
-        Row(
-            modifier              = Modifier.clickable { onOpenDatePicker() },
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(dateDisplay, style = MaterialTheme.typography.titleMedium)
-            Icon(
-                Icons.Filled.DateRange,
-                contentDescription = stringResource(R.string.summary_select_date_cd),
-                modifier           = Modifier.size(14.dp),
-                tint               = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        IconButton(onClick = onNext, enabled = canGoForward) {
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.summary_next_day_cd))
-        }
-    }
-}
-
 // ── Card hero: RESTANTES ──────────────────────────────────────────────────────
 
 @Composable
@@ -255,18 +241,17 @@ private fun CaloriesSummaryCard(totalKcal: Int, goalKcal: Int) {
     val heroColor = if (isOver) MaterialTheme.colorScheme.error
                    else        MaterialTheme.colorScheme.primary
 
-    val surfaceTop    = MaterialTheme.colorScheme.surfaceVariant   // SurfaceElevated
-    val surfaceBottom = MaterialTheme.colorScheme.surface          // Surface
+    val surfaceTop    = MaterialTheme.colorScheme.surfaceVariant
+    val surfaceBottom = MaterialTheme.colorScheme.surface
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(AppShapeXl)                                      // 24dp radius
+            .clip(AppShapeXl)
             .background(Brush.verticalGradient(listOf(surfaceTop, surfaceBottom)))
             .padding(28.dp)
     ) {
         Column {
-            // Línea 1: etiqueta
             Text(
                 text  = stringResource(R.string.summary_remaining),
                 style = MaterialTheme.typography.labelMedium,
@@ -274,7 +259,6 @@ private fun CaloriesSummaryCard(totalKcal: Int, goalKcal: Int) {
             )
             Spacer(Modifier.height(Spacing.xs))
 
-            // Línea 2: número gigante + unidad alineados por baseline
             Row {
                 Text(
                     text     = "${remaining.coerceAtLeast(0)}",
@@ -296,7 +280,6 @@ private fun CaloriesSummaryCard(totalKcal: Int, goalKcal: Int) {
 
             Spacer(Modifier.height(Spacing.lg))
 
-            // Línea 3: barra de progreso 4dp
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -314,7 +297,6 @@ private fun CaloriesSummaryCard(totalKcal: Int, goalKcal: Int) {
 
             Spacer(Modifier.height(Spacing.sm))
 
-            // Línea 4: resumen textual
             Text(
                 text  = stringResource(R.string.summary_kcal_consumed, totalKcal, goalKcal),
                 style = MaterialTheme.typography.bodyMedium.copy(
@@ -336,10 +318,10 @@ private fun MacronutrientsCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape    = MaterialTheme.shapes.large           // AppShapeLg = 16dp
+        shape    = MaterialTheme.shapes.large
     ) {
         Column(
-            modifier = Modifier.padding(Spacing.xl),   // 24dp
+            modifier = Modifier.padding(Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
@@ -390,101 +372,15 @@ private fun FoodEntryRow(entry: FoodEntryEntity, onDelete: () -> Unit) {
         java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
             .format(java.util.Date(entry.timestamp))
     }
-
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                true
-            } else false
-        },
-        positionalThreshold = { it * 0.38f }
+    MacroItemCard(
+        title         = entry.name,
+        kcal          = entry.kcal,
+        protein       = entry.protein,
+        carbs         = entry.carbs,
+        fat           = entry.fat,
+        leadingLabel  = timeStr,
+        onSwipeDelete = onDelete
     )
-
-    SwipeToDismissBox(
-        state                       = dismissState,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            val fraction = dismissState.progress
-            val visible  = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(MaterialTheme.shapes.small)
-                    .background(
-                        MaterialTheme.colorScheme.errorContainer.copy(
-                            alpha = if (visible) (fraction * 2f).coerceIn(0f, 1f) else 0f
-                        )
-                    )
-                    .padding(end = Spacing.lg),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Icon(
-                    imageVector        = Icons.Filled.Delete,
-                    contentDescription = stringResource(R.string.summary_delete_cd),
-                    tint               = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier           = Modifier.size(20.dp)
-                )
-            }
-        }
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape    = MaterialTheme.shapes.large   // AppShapeLg = 16dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-            ) {
-                // Línea 1: hora + nombre alineados por baseline
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text     = timeStr,
-                        style    = MaterialTheme.typography.labelSmall,
-                        color    = TextTertiary,
-                        modifier = Modifier.alignByBaseline()
-                    )
-                    Text(
-                        text     = entry.name,
-                        style    = MaterialTheme.typography.headlineMedium,
-                        color    = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f)
-                            .alignByBaseline()
-                    )
-                }
-                Spacer(Modifier.height(Spacing.sm))
-                // Línea 2: kcal destacadas
-                Row {
-                    Text(
-                        text     = "${entry.kcal}",
-                        style    = MaterialTheme.typography.titleMedium.copy(
-                            fontFeatureSettings = FontFeatureTnum
-                        ),
-                        color    = MaterialTheme.macroColors.calories,
-                        modifier = Modifier.alignByBaseline()
-                    )
-                    Text(
-                        text     = " kcal",
-                        style    = MaterialTheme.typography.labelSmall,
-                        color    = TextTertiary,
-                        modifier = Modifier.alignByBaseline()
-                    )
-                }
-                Spacer(Modifier.height(Spacing.sm))
-                // Línea 3: proteína · carbs · grasas
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    MacroPill(MacroType.PROTEIN, "${entry.protein.toInt()}g")
-                    MacroPill(MacroType.CARBS,   "${entry.carbs.toInt()}g")
-                    MacroPill(MacroType.FAT,      "${entry.fat.toInt()}g")
-                }
-            }
-        }
-    }
 }
 
 // ── Estado vacío ──────────────────────────────────────────────────────────────

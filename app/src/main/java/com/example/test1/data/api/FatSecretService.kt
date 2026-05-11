@@ -53,6 +53,8 @@ class FatSecretService(
     }
 
     suspend fun lookup(barcode: String): Result<BarcodeResult> = runCatching {
+        if (clientId.isBlank() || clientSecret.isBlank())
+            error("FatSecret credentials not configured")
         val token = getToken()
         val foodId = findIdByBarcode(barcode, token)
             ?: error("Barcode $barcode not found in FatSecret")

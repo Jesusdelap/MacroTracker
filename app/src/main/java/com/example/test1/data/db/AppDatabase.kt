@@ -107,7 +107,6 @@ abstract class AppDatabase : RoomDatabase() {
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "macro_tracker.db")
                     .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
-                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5)
                     .build()
                     .also { INSTANCE = it }
             }

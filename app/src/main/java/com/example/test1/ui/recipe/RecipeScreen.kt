@@ -49,6 +49,7 @@ import com.example.test1.data.db.entity.FoodItemEntity
 import com.example.test1.data.db.entity.ServingMode
 import com.example.test1.data.db.entity.FoodItemSource
 import com.example.test1.data.db.entity.isPer100g
+import com.example.test1.ui.components.MacroItemCard
 import com.example.test1.ui.components.MacroPill
 import com.example.test1.ui.theme.*
 import kotlin.math.abs
@@ -354,164 +355,89 @@ private fun RecipeCard(
     }
     var showWeightPicker by remember { mutableStateOf(false) }
 
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false
-        },
-        positionalThreshold = { it * 0.38f }
-    )
-
     if (showWeightPicker) {
         WeightPickerDialog(
-            recipe     = recipe,
-            onConfirm  = { grams -> showWeightPicker = false; onAddToTodayWithGrams(grams) },
-            onDismiss  = { showWeightPicker = false }
+            recipe    = recipe,
+            onConfirm = { grams -> showWeightPicker = false; onAddToTodayWithGrams(grams) },
+            onDismiss = { showWeightPicker = false }
         )
     }
 
-    SwipeToDismissBox(
-        state                       = dismissState,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            val fraction = dismissState.progress
-            val visible  = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(MaterialTheme.shapes.large)
-                    .background(
-                        MaterialTheme.colorScheme.errorContainer.copy(
-                            alpha = if (visible) (fraction * 2f).coerceIn(0f, 1f) else 0f
-                        )
-                    )
-                    .padding(end = Spacing.lg),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete),
-                    tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
+    val per100gSuffix   = stringResource(R.string.recipe_per_100g_suffix)
+    val per100gBadge    = stringResource(R.string.recipe_per_100g_badge)
+    val servingUnit     = stringResource(R.string.recipe_serving_unit)
+    val favRemoveLabel  = stringResource(R.string.recipe_favorite_remove)
+    val favAddLabel     = stringResource(R.string.recipe_favorite_add)
+
+    MacroItemCard(
+        title         = recipe.name,
+        kcal          = recipe.kcalPerServing,
+        protein       = recipe.protein,
+        carbs         = recipe.carbs,
+        fat           = recipe.fat,
+        kcalSuffix    = if (recipe.isPer100g) " $per100gSuffix" else null,
+        metadata      = {
+            val subtitle = buildString {
+                if (!recipe.isPer100g) append("· ${recipe.servings.toInt()} $servingUnit ")
+                append("· $dateStr")
+                if (recipe.usageCount > 0) append(" · ${recipe.usageCount}×")
             }
-        }
-    ) {
-        ElevatedCard(
-            modifier  = Modifier.fillMaxWidth(),
-            shape     = MaterialTheme.shapes.large,
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(20.dp)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+        },
+        trailingContent = {
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment     = Alignment.Top
+                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Filled.Star,
+                        contentDescription = if (recipe.isFavorite) favRemoveLabel else favAddLabel,
+                        modifier           = Modifier.size(16.dp),
+                        tint               = if (recipe.isFavorite) MaterialTheme.colorScheme.primary
+                                             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    )
+                }
+                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.action_edit),
+                        modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                FilledTonalButton(
+                    onClick        = { if (recipe.isPer100g) showWeightPicker = true else onAddToToday() },
+                    contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
+                    modifier       = Modifier.height(36.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = Spacing.sm)) {
-                        Text(
-                            text     = recipe.name,
-                            style    = MaterialTheme.typography.headlineMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color    = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(Modifier.height(Spacing.xs))
-                        Row(
-                            verticalAlignment     = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                        ) {
-                            Icon(Icons.Filled.LocalFireDepartment, contentDescription = null,
-                                modifier = Modifier.size(13.dp), tint = MaterialTheme.macroColors.calories)
-                            Text(
-                                text  = "${recipe.kcalPerServing} kcal${if (recipe.isPer100g) " ${stringResource(R.string.recipe_per_100g_suffix)}" else ""}",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.macroColors.calories
-                            )
-                            val subtitle = buildString {
-                                if (!recipe.isPer100g) append("· ${recipe.servings.toInt()} ${stringResource(R.string.recipe_serving_unit)} ")
-                                append("· $dateStr")
-                                if (recipe.usageCount > 0) append(" · ${recipe.usageCount}×")
-                            }
-                            Text(
-                                text  = subtitle,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextTertiary
-                            )
-                        }
-                    }
-                    // Favorite + Edit + Add buttons
-                    Row(
-                        verticalAlignment     = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                    ) {
-                        IconButton(
-                            onClick  = onToggleFavorite,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.Star,
-                                contentDescription = if (recipe.isFavorite) stringResource(R.string.recipe_favorite_remove) else stringResource(R.string.recipe_favorite_add),
-                                modifier = Modifier.size(16.dp),
-                                tint     = if (recipe.isFavorite) MaterialTheme.colorScheme.primary
-                                           else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            )
-                        }
-                        IconButton(
-                            onClick  = onEdit,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.action_edit),
-                                modifier = Modifier.size(16.dp),
-                                tint     = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        FilledTonalButton(
-                            onClick        = { if (recipe.isPer100g) showWeightPicker = true else onAddToToday() },
-                            contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
-                            modifier       = Modifier.height(36.dp)
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(Spacing.xs))
-                            Text(stringResource(R.string.action_add), style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(Spacing.md))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    MacroPill(MacroType.PROTEIN, "${recipe.protein.toInt()}g")
-                    MacroPill(MacroType.CARBS,   "${recipe.carbs.toInt()}g")
-                    MacroPill(MacroType.FAT,     "${recipe.fat.toInt()}g")
-                    if (recipe.isPer100g) {
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    MaterialTheme.colorScheme.secondaryContainer,
-                                    AppShapeSm
-                                )
-                                .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
-                        ) {
-                            Text(
-                                stringResource(R.string.recipe_per_100g_badge),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                    }
-                }
-
-                if (recipe.ingredients.isNotBlank()) {
-                    Spacer(Modifier.height(Spacing.sm))
-                    Text(
-                        text     = recipe.ingredients,
-                        style    = MaterialTheme.typography.bodySmall,
-                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(Spacing.xs))
+                    Text(stringResource(R.string.action_add), style = MaterialTheme.typography.labelLarge)
                 }
             }
-        }
-    }
+        },
+        bottomTrailing = if (recipe.isPer100g) {
+            {
+                Box(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.secondaryContainer, AppShapeSm)
+                        .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
+                ) {
+                    Text(per100gBadge, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+            }
+        } else null,
+        extraContent  = if (recipe.ingredients.isNotBlank()) {
+            {
+                Text(
+                    text     = recipe.ingredients,
+                    style    = MaterialTheme.typography.bodySmall,
+                    color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        } else null,
+        onSwipeDelete = onDelete
+    )
 }
 
 // ─── Weight picker dialog ──────────────────────────────────────────────────────
@@ -550,9 +476,9 @@ private fun WeightPickerDialog(
                 if (gramsF != null && gramsF > 0f) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         MacroPill(MacroType.CALORIES, "${(recipe.kcalPerServing * ratio).toInt()}",  modifier = Modifier.weight(1f))
-                        MacroPill(MacroType.PROTEIN,  "${"%.1f".format(recipe.protein * ratio)}g",  modifier = Modifier.weight(1f))
-                        MacroPill(MacroType.CARBS,    "${"%.1f".format(recipe.carbs   * ratio)}g",  modifier = Modifier.weight(1f))
-                        MacroPill(MacroType.FAT,      "${"%.1f".format(recipe.fat     * ratio)}g",  modifier = Modifier.weight(1f))
+                        MacroPill(MacroType.PROTEIN,  "${(recipe.protein * ratio).roundToInt()}g",  modifier = Modifier.weight(1f))
+                        MacroPill(MacroType.CARBS,    "${(recipe.carbs   * ratio).roundToInt()}g",  modifier = Modifier.weight(1f))
+                        MacroPill(MacroType.FAT,      "${(recipe.fat     * ratio).roundToInt()}g",  modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -646,13 +572,6 @@ private fun ProductCard(
 ) {
     var showWeightPicker by remember { mutableStateOf(false) }
 
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange  = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false
-        },
-        positionalThreshold = { it * 0.38f }
-    )
-
     if (showWeightPicker) {
         WeightPickerDialog(
             recipe    = product,
@@ -661,102 +580,33 @@ private fun ProductCard(
         )
     }
 
-    SwipeToDismissBox(
-        state                       = dismissState,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            val fraction = dismissState.progress
-            val visible  = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(MaterialTheme.shapes.large)
-                    .background(
-                        MaterialTheme.colorScheme.errorContainer.copy(
-                            alpha = if (visible) (fraction * 2f).coerceIn(0f, 1f) else 0f
-                        )
-                    )
-                    .padding(end = Spacing.lg),
-                contentAlignment = Alignment.CenterEnd
+    val per100gSuffix = stringResource(R.string.recipe_per_100g_suffix)
+
+    MacroItemCard(
+        title           = product.name,
+        kcal            = product.kcalPerServing,
+        protein         = product.protein,
+        carbs           = product.carbs,
+        fat             = product.fat,
+        secondaryTitle  = product.brand,
+        kcalSuffix      = " $per100gSuffix",
+        metadata        = if (product.usageCount > 0) {
+            { Text("· ${product.usageCount}×", style = MaterialTheme.typography.labelSmall, color = TextTertiary) }
+        } else null,
+        trailingContent = {
+            FilledTonalButton(
+                onClick        = { showWeightPicker = true },
+                contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
+                modifier       = Modifier.height(36.dp)
             ) {
-                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete),
-                    tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(Spacing.xs))
+                Text(stringResource(R.string.action_add), style = MaterialTheme.typography.labelLarge)
             }
-        }
-    ) {
-        ElevatedCard(
-            modifier  = Modifier.fillMaxWidth(),
-            shape     = MaterialTheme.shapes.large,
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment     = Alignment.Top
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = Spacing.sm)) {
-                        Text(
-                            text     = product.name,
-                            style    = MaterialTheme.typography.headlineMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color    = MaterialTheme.colorScheme.onSurface
-                        )
-                        if (product.brand != null) {
-                            Text(
-                                text  = product.brand,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.height(Spacing.xs))
-                        Row(
-                            verticalAlignment     = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                        ) {
-                            Icon(Icons.Filled.LocalFireDepartment, contentDescription = null,
-                                modifier = Modifier.size(13.dp), tint = MaterialTheme.macroColors.calories)
-                            Text(
-                                text  = "${product.kcalPerServing} kcal ${stringResource(R.string.recipe_per_100g_suffix)}",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.macroColors.calories
-                            )
-                            if (product.usageCount > 0) {
-                                Text(
-                                    text  = "· ${product.usageCount}×",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TextTertiary
-                                )
-                            }
-                        }
-                    }
-                    FilledTonalButton(
-                        onClick        = { showWeightPicker = true },
-                        contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
-                        modifier       = Modifier.height(36.dp)
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(Spacing.xs))
-                        Text(stringResource(R.string.action_add), style = MaterialTheme.typography.labelLarge)
-                    }
-                }
-
-                Spacer(Modifier.height(Spacing.md))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    SourceChip(product.source)
-                    MacroPill(MacroType.PROTEIN, "${product.protein.toInt()}g")
-                    MacroPill(MacroType.CARBS,   "${product.carbs.toInt()}g")
-                    MacroPill(MacroType.FAT,      "${product.fat.toInt()}g")
-                }
-            }
-        }
-    }
+        },
+        bottomLeading   = { SourceChip(product.source) },
+        onSwipeDelete   = onDelete
+    )
 }
 
 // ─── Full-screen creation / edit dialog ────────────────────────────────────────

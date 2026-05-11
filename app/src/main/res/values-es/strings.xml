@@ -200,6 +200,16 @@
     <string name="scanner_back_cd">Volver</string>
     <string name="scanner_retry">Escanear de nuevo</string>
 
+    <!-- App drawer -->
+    <string name="drawer_menu_cd">Abrir menú</string>
+    <string name="drawer_goals">Objetivos diarios</string>
+    <string name="drawer_appearance">APARIENCIA</string>
+    <string name="drawer_dark_mode">Modo oscuro</string>
+    <string name="drawer_light_mode">Modo claro</string>
+    <string name="drawer_language">IDIOMA</string>
+    <string name="drawer_lang_es">Español</string>
+    <string name="drawer_lang_en">English</string>
+
     <!-- Chat greetings -->
     <string-array name="chat_greetings">
         <item>¿Qué has comido? Cuéntame y calculo los macros al instante.</item>

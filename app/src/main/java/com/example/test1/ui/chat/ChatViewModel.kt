@@ -30,6 +30,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 import java.time.LocalDate
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 data class ChatMessage(
     val id: Long = 0L,
@@ -48,6 +50,13 @@ data class EditingEntry(
     val originalMacro: MacroResult
 )
 
+data class PendingUndo(
+    val entry: FoodEntryEntity,
+    val messageId: Long,
+    val messageName: String,
+    val macroResultJson: String?
+)
+
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val inputText: String = "",
@@ -55,7 +64,8 @@ data class ChatUiState(
     val error: String? = null,
     val debugInfo: String? = null,
     val editingEntry: EditingEntry? = null,
-    val pendingImageUri: Uri? = null
+    val pendingImageUri: Uri? = null,
+    val pendingUndo: PendingUndo? = null
 )
 
 class ChatViewModel(
@@ -96,7 +106,7 @@ class ChatViewModel(
                 pendingImageBase64 = null
                 pendingImagePath = null
                 editingHistory.clear()
-                _uiState.update { it.copy(editingEntry = null, isLoading = false, error = null, pendingImageUri = null) }
+                _uiState.update { it.copy(editingEntry = null, isLoading = false, error = null, pendingImageUri = null, pendingUndo = null) }
             }
         }
 
@@ -195,8 +205,16 @@ class ChatViewModel(
 
         if (editingHistory.isEmpty()) {
             val orig = editingEntry.originalMacro
+            val ingredientsCtx = if (orig.ingredients.isEmpty()) {
+                ""
+            } else {
+                val list = orig.ingredients.joinToString(", ") {
+                    "${it.name} (${it.cal.toInt()} kcal, ${it.prot}g prot, ${it.carb}g carb, ${it.fat}g fat)"
+                }
+                " The dish had these ingredients: $list."
+            }
             val ctx = "I have logged \"${orig.name}\" (${orig.cal} kcal, ${orig.prot}g protein, " +
-                "${orig.carb}g carbs, ${orig.fat}g fat). I want to correct: $text"
+                "${orig.carb}g carbs, ${orig.fat}g fat).$ingredientsCtx I want to correct: $text"
             editingHistory.add("user" to ctx)
         } else {
             editingHistory.add("user" to text)
@@ -241,7 +259,7 @@ class ChatViewModel(
                     editingEntry.entryId
                 )
                 val confirmMsg = ChatMessage(
-                    text = str(R.string.vm_chat_entry_updated),
+                    text = buildUpdateSummary(editingEntry.originalMacro, newMacro),
                     isUser = false
                 )
                 chatMessageRepository.insert(confirmMsg.toEntity(sharedDate.value))
@@ -382,14 +400,35 @@ class ChatViewModel(
 
     fun discardEntry(entryId: Long, messageId: Long) {
         viewModelScope.launch {
+            val entry = foodRepository.getById(entryId)
+            val originalMsg = _uiState.value.messages.firstOrNull { it.id == messageId }
             foodRepository.deleteById(entryId)
             chatMessageRepository.updateMessage(messageId, str(R.string.vm_chat_entry_discarded), null, null)
+            _uiState.update { state ->
+                state.copy(
+                    editingEntry = if (state.editingEntry?.entryId == entryId) null else state.editingEntry,
+                    pendingUndo = if (entry != null && originalMsg != null) PendingUndo(
+                        entry          = entry,
+                        messageId      = messageId,
+                        messageName    = originalMsg.text,
+                        macroResultJson = originalMsg.macroResult?.let { messageJson.encodeToString(it) }
+                    ) else null
+                )
+            }
         }
-        _uiState.update { state ->
-            state.copy(
-                editingEntry = if (state.editingEntry?.entryId == entryId) null else state.editingEntry
-            )
+    }
+
+    fun undoDiscard() {
+        val undo = _uiState.value.pendingUndo ?: return
+        _uiState.update { it.copy(pendingUndo = null) }
+        viewModelScope.launch {
+            foodRepository.insert(undo.entry)
+            chatMessageRepository.updateMessage(undo.messageId, undo.messageName, undo.macroResultJson, undo.entry.id)
         }
+    }
+
+    fun dismissUndo() {
+        _uiState.update { it.copy(pendingUndo = null) }
     }
 
     fun updateEntryManually(entryId: Long, messageId: Long, newMacro: MacroResult) {
@@ -431,6 +470,24 @@ class ChatViewModel(
     fun cancelAIEdit() {
         editingHistory.clear()
         _uiState.update { it.copy(editingEntry = null) }
+    }
+
+    private fun buildUpdateSummary(old: MacroResult, updated: MacroResult): String {
+        val lines = mutableListOf<String>()
+        if (old.name != updated.name) lines.add("\"${old.name}\" → \"${updated.name}\"")
+        val calDiff  = updated.cal  - old.cal
+        val protDiff = updated.prot - old.prot
+        val carbDiff = updated.carb - old.carb
+        val fatDiff  = updated.fat  - old.fat
+        fun fmt(diff: Number, unit: String): String {
+            val d = diff.toFloat()
+            return "${if (d >= 0f) "+" else ""}${d.roundToInt()}$unit"
+        }
+        lines.add("${updated.cal} kcal (${fmt(calDiff, " kcal")})")
+        if (abs(protDiff) >= 0.5f) lines.add("${updated.prot.roundToInt()}g prot (${fmt(protDiff, "g")})")
+        if (abs(carbDiff) >= 0.5f) lines.add("${updated.carb.roundToInt()}g carb (${fmt(carbDiff, "g")})")
+        if (abs(fatDiff)  >= 0.5f) lines.add("${updated.fat.roundToInt()}g fat (${fmt(fatDiff, "g")})")
+        return str(R.string.vm_chat_entry_updated) + "\n" + lines.joinToString("\n")
     }
 
     private fun buildRecipeContext(): String =

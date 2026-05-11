@@ -56,7 +56,7 @@ class GeminiService {
                     put("responseMimeType", "application/json")
                 }
             }.toString()
-            json.decodeFromString<FoodChatResponse>(callGemini(body))
+            json.decodeFromString<FoodChatResponse>(sanitizeNumericFields(callGemini(body)))
         }
 
         if (cacheKey != null && response.asMacroResult != null) {
@@ -68,8 +68,9 @@ class GeminiService {
 
     suspend fun chatFoodWithImage(
         imageBase64: String,
+        userText: String? = null,
         mimeType: String = "image/jpeg",
-        textHistory: List<Pair<String, String>> = emptyList(),
+        priorHistory: List<Pair<String, String>> = emptyList(),
         recipeContext: String = ""
     ): Result<FoodChatResponse> = runCatching {
         withExponentialBackoff {
@@ -78,6 +79,14 @@ class GeminiService {
                          else "$basePrompt\n\n$recipeContext"
             val body = buildJsonObject {
                 putJsonArray("contents") {
+                    // Prior conversation turns (before this image message)
+                    priorHistory.forEach { (role, text) ->
+                        addJsonObject {
+                            put("role", role)
+                            putJsonArray("parts") { addJsonObject { put("text", text) } }
+                        }
+                    }
+                    // Current user turn: image + optional text combined in one message
                     addJsonObject {
                         put("role", "user")
                         putJsonArray("parts") {
@@ -87,12 +96,9 @@ class GeminiService {
                                     put("data", imageBase64)
                                 }
                             }
-                        }
-                    }
-                    textHistory.forEach { (role, text) ->
-                        addJsonObject {
-                            put("role", role)
-                            putJsonArray("parts") { addJsonObject { put("text", text) } }
+                            if (!userText.isNullOrBlank()) {
+                                addJsonObject { put("text", userText) }
+                            }
                         }
                     }
                 }
@@ -103,7 +109,7 @@ class GeminiService {
                     put("responseMimeType", "application/json")
                 }
             }.toString()
-            json.decodeFromString<FoodChatResponse>(callGemini(body))
+            json.decodeFromString<FoodChatResponse>(sanitizeNumericFields(callGemini(body)))
         }
     }
 
@@ -124,6 +130,14 @@ class GeminiService {
             }.toString()
             callGemini(body)
         }
+    }
+
+    private fun sanitizeNumericFields(raw: String): String {
+        // Gemini sometimes emits a colon inside a numeric literal (e.g. "cal": 12:3 or "prot": 1:1.4).
+        // Strip the stray colon so the value parses correctly.
+        return raw.replace(
+            Regex(""""(cal|prot|carb|fat)"\s*:\s*(-?\d+(?::\d+)+(?:\.\d+)?)""")
+        ) { m -> "\"${m.groupValues[1]}\": ${m.groupValues[2].replace(":", "")}" }
     }
 
     private suspend fun callGemini(requestBody: String): String = withContext(Dispatchers.IO) {
