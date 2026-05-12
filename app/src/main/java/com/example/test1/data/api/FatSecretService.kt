@@ -8,6 +8,7 @@ import kotlinx.serialization.json.*
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class FatSecretService(
@@ -54,11 +55,25 @@ class FatSecretService(
 
     suspend fun lookup(barcode: String): Result<BarcodeResult> = runCatching {
         if (clientId.isBlank() || clientSecret.isBlank())
-            error("FatSecret credentials not configured")
-        val token = getToken()
+            throw BarcodeLookupException(BarcodeLookupError.Configuration, "FatSecret credentials not configured")
+        val token = try {
+            getToken()
+        } catch (e: IOException) {
+            throw BarcodeLookupException(BarcodeLookupError.Network, "Network error while connecting to FatSecret", e)
+        } catch (e: Exception) {
+            throw BarcodeLookupException(BarcodeLookupError.ServiceUnavailable, e.message ?: "FatSecret unavailable", e)
+        }
         val foodId = findIdByBarcode(barcode, token)
-            ?: error("Barcode $barcode not found in FatSecret")
-        getFoodDetails(foodId, barcode, token)
+            ?: throw BarcodeLookupException(BarcodeLookupError.NotFound, "Barcode $barcode not found in FatSecret")
+        try {
+            getFoodDetails(foodId, barcode, token)
+        } catch (e: IOException) {
+            throw BarcodeLookupException(BarcodeLookupError.Network, "Network error while loading FatSecret details", e)
+        } catch (e: BarcodeLookupException) {
+            throw e
+        } catch (e: Exception) {
+            throw BarcodeLookupException(BarcodeLookupError.ServiceUnavailable, e.message ?: "FatSecret unavailable", e)
+        }
     }
 
     private suspend fun findIdByBarcode(barcode: String, token: String): String? =
@@ -71,9 +86,24 @@ class FatSecretService(
                 .build()
 
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext null
+                if (!response.isSuccessful) {
+                    if (response.code in 500..599) {
+                        throw BarcodeLookupException(BarcodeLookupError.ServiceUnavailable, "FatSecret lookup ${response.code}")
+                    }
+                    return@withContext null
+                }
                 val text = response.body?.string() ?: return@withContext null
-                json.parseToJsonElement(text).jsonObject["food_id"]
+                val obj = json.parseToJsonElement(text).jsonObject
+                obj["error"]?.jsonObject?.let {
+                    val message = it["message"]?.jsonPrimitive?.content.orEmpty()
+                    val reason = if (message.contains("IP", ignoreCase = true)) {
+                        BarcodeLookupError.Configuration
+                    } else {
+                        BarcodeLookupError.ServiceUnavailable
+                    }
+                    throw BarcodeLookupException(reason, message.ifBlank { "FatSecret lookup error" })
+                }
+                obj["food_id"]
                     ?.jsonObject?.get("value")?.jsonPrimitive?.content
             }
         }

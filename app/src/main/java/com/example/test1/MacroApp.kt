@@ -10,6 +10,7 @@ import com.example.test1.data.repository.GoalRepository
 import com.example.test1.data.repository.RecipeRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.LocalDate
+import java.util.Locale
 
 class MacroApp : Application() {
     val database by lazy { AppDatabase.getInstance(this) }
@@ -20,4 +21,15 @@ class MacroApp : Application() {
     val geminiService by lazy { GeminiService() }
     val barcodeNutritionService by lazy { BarcodeNutritionService() }
     val selectedDate = MutableStateFlow(LocalDate.now().toString())
+    val languageCode: String
+        get() = getSharedPreferences("app_settings", MODE_PRIVATE)
+            .getString("language", null)
+            ?.takeIf { it.isNotBlank() }
+            ?: systemLanguageCode()
+
+    private fun systemLanguageCode(): String =
+        when (Locale.getDefault().language.lowercase(Locale.ROOT)) {
+            "es" -> "es"
+            else -> "en"
+        }
 }

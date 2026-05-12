@@ -20,15 +20,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             var isDark by remember { mutableStateOf(initialDark) }
+            var currentLang by remember {
+                mutableStateOf(prefs.getString("language", null) ?: systemLanguageCode())
+            }
             Test1Theme(darkTheme = isDark) {
                 AppNavigation(
                     isDark           = isDark,
-                    currentLang      = prefs.getString("language", "").orEmpty(),
+                    currentLang      = currentLang,
                     onToggleTheme    = {
                         isDark = !isDark
                         prefs.edit().putBoolean("dark_theme", isDark).apply()
                     },
                     onToggleLanguage = { lang ->
+                        currentLang = lang
                         prefs.edit().putString("language", lang).apply()
                         recreate()
                     }
@@ -39,13 +43,22 @@ class MainActivity : ComponentActivity() {
 
     override fun attachBaseContext(newBase: Context) {
         val prefs = newBase.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val lang  = prefs.getString("language", "").orEmpty()
-        val ctx   = if (lang.isNotEmpty()) {
-            val locale = Locale(lang)
-            val config = Configuration(newBase.resources.configuration)
-            config.setLocale(locale)
-            newBase.createConfigurationContext(config)
-        } else newBase
+        val lang = prefs.getString("language", null)?.takeIf { it.isNotBlank() }
+        if (lang == null) {
+            super.attachBaseContext(newBase)
+            return
+        }
+        val locale = Locale.forLanguageTag(lang)
+        Locale.setDefault(locale)
+        val config = Configuration(newBase.resources.configuration)
+        config.setLocale(locale)
+        val ctx = newBase.createConfigurationContext(config)
         super.attachBaseContext(ctx)
     }
+
+    private fun systemLanguageCode(): String =
+        when (Locale.getDefault().language.lowercase(Locale.ROOT)) {
+            "es" -> "es"
+            else -> "en"
+        }
 }

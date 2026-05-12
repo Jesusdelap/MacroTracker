@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
@@ -50,6 +52,7 @@ private sealed class Tab(val route: String, val labelRes: Int, val icon: ImageVe
 
 private val tabs      = listOf(Tab.Summary, Tab.Chat, Tab.Foods)
 private val tabRoutes = tabs.map { it.route }.toSet()
+private val languageOptions = listOf("es" to R.string.drawer_lang_es, "en" to R.string.drawer_lang_en)
 
 @Composable
 fun AppNavigation(
@@ -333,20 +336,73 @@ private fun AppDrawerContent(
                 tint               = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.width(Spacing.md))
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                SegmentedButton(
-                    selected = currentLang == "es",
-                    onClick  = { onToggleLanguage("es") },
-                    shape    = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                ) { Text(stringResource(R.string.drawer_lang_es), style = MaterialTheme.typography.labelSmall) }
-                SegmentedButton(
-                    selected = currentLang != "es",
-                    onClick  = { onToggleLanguage("en") },
-                    shape    = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                ) { Text(stringResource(R.string.drawer_lang_en), style = MaterialTheme.typography.labelSmall) }
-            }
+            LanguageMenu(
+                currentLang      = currentLang.ifBlank { "en" },
+                onToggleLanguage = onToggleLanguage,
+                modifier         = Modifier.weight(1f)
+            )
         }
 
         Spacer(Modifier.height(Spacing.xl))
+    }
+}
+
+@Composable
+private fun LanguageMenu(
+    currentLang: String,
+    onToggleLanguage: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = languageOptions.firstOrNull { it.first == currentLang } ?: languageOptions.last()
+
+    Box(modifier = modifier) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(AppShapeMd)
+                .clickable { expanded = true },
+            shape = AppShapeMd,
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(selected.second),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            languageOptions.forEach { (code, labelRes) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(labelRes)) },
+                    leadingIcon = {
+                        if (code == selected.first) {
+                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        } else {
+                            Spacer(Modifier.size(18.dp))
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        if (code != selected.first) onToggleLanguage(code)
+                    }
+                )
+            }
+        }
     }
 }

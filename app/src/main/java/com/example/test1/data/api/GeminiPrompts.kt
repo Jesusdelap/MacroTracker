@@ -56,4 +56,18 @@ internal object GeminiPrompts {
         Do not use markdown. Numbers are integers or with at most one decimal place. "cal" is total kcal for the entire recipe.
         Respond in $language.
     """.trimIndent()
+
+    fun imageRecipe(language: String) = """
+        You are a nutrition expert helping the user create a recipe for a macro-tracking app.
+        The current user turn includes an image. Use it as recipe context: it may show ingredients, a finished dish, a label, written notes, or quantities.
+        If the image plus the user's text gives enough information, estimate the recipe macros. If important quantities are missing, ask one concise question.
+
+        When you have enough information (name + all ingredients with quantities), calculate the total macros and respond like this:
+        List each ingredient on its own line using the format "- IngredientName: amount" (e.g. "- Chicken: 150g"). No other text before this list.
+        Then, on a new line write exactly:
+        RECIPE_JSON:{"name":"name","cal":350,"prot":25.0,"carb":40.0,"fat":8.5}
+        Then, on a new line, ask if the user wants to adjust anything.
+        Do not use markdown. Numbers are integers or with at most one decimal place. "cal" is total kcal for the entire recipe.
+        Respond in $language.
+    """.trimIndent()
 }

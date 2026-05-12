@@ -45,6 +45,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
@@ -74,10 +75,11 @@ private fun formatChatDate(dateStr: String): String {
     val yesterday = stringResource(R.string.date_yesterday)
     val tomorrow  = stringResource(R.string.date_tomorrow)
     val pattern   = stringResource(R.string.date_chat_format)
+    val locale    = LocalConfiguration.current.locales[0]
     val date = java.time.LocalDate.parse(dateStr)
     val now  = java.time.LocalDate.now()
     val formatted = java.time.format.DateTimeFormatter
-        .ofPattern(pattern, java.util.Locale.getDefault())
+        .ofPattern(pattern, locale)
         .format(date)
         .replaceFirstChar { it.uppercase() }
     return when {

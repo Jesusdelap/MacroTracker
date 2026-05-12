@@ -24,6 +24,7 @@ data class FoodItemEntity(
     val carbs: Float,
     val fat: Float,
     val ingredients: String = "",
+    val aiChatJson: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val isFavorite: Boolean = false,
     val usageCount: Int = 0,

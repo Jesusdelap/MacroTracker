@@ -9,6 +9,7 @@ import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.test1.R
+import com.example.test1.MacroApp
 import com.example.test1.data.api.FoodChatResponse
 import com.example.test1.data.api.GeminiService
 import com.example.test1.data.api.IngredientMacro
@@ -80,6 +81,7 @@ class ChatViewModel(
 
     private fun str(resId: Int) = getApplication<Application>().getString(resId)
     private fun str(resId: Int, vararg args: Any) = getApplication<Application>().getString(resId, *args)
+    private fun languageCode(): String = (getApplication<Application>() as MacroApp).languageCode
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -188,10 +190,11 @@ class ChatViewModel(
                     imageBase64,
                     userText      = text.ifBlank { null },
                     priorHistory  = priorHistory,
-                    recipeContext = recipeContext
+                    recipeContext = recipeContext,
+                    languageCode  = languageCode()
                 )
             } else {
-                geminiService.chatFood(pendingHistory.toList(), recipeContext)
+                geminiService.chatFood(pendingHistory.toList(), recipeContext, languageCode())
             }
             if (result.isFailure) { handleError(result.exceptionOrNull()!!); return@launch }
             handleResponse(result.getOrThrow(), pendingHistory.toList())
@@ -224,7 +227,7 @@ class ChatViewModel(
         viewModelScope.launch {
             chatMessageRepository.insert(userMsg.toEntity(sharedDate.value))
             val recipeContext = buildRecipeContext()
-            val result = geminiService.chatFood(historySnapshot, recipeContext)
+            val result = geminiService.chatFood(historySnapshot, recipeContext, languageCode())
             if (result.isFailure) {
                 editingHistory.clear()
                 _uiState.update { it.copy(editingEntry = null) }

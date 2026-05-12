@@ -1,16 +1,28 @@
 package com.example.test1.ui.recipe
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -26,9 +38,12 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -55,14 +72,38 @@ import com.example.test1.ui.theme.*
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import java.io.ByteArrayOutputStream
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-private data class AiMsg(val text: String, val isUser: Boolean, val isInitial: Boolean = false)
+@Serializable
+private data class AiMsg(
+    val text: String,
+    val isUser: Boolean,
+    val isInitial: Boolean = false,
+    val isImageMessage: Boolean = false,
+    val imagePath: String? = null
+)
 
 private const val RECIPE_JSON_MARKER = "RECIPE_JSON:"
 private val recipeJson = Json { ignoreUnknownKeys = true }
+private val recipeAiChatJson = Json { ignoreUnknownKeys = true }
+
+private fun decodeAiChat(raw: String?, fallbackGreeting: String): List<AiMsg> =
+    raw?.takeIf { it.isNotBlank() }?.let {
+        runCatching { recipeAiChatJson.decodeFromString<List<AiMsg>>(it) }.getOrNull()
+    }?.takeIf { it.isNotEmpty() }
+        ?: listOf(AiMsg(fallbackGreeting, isUser = false, isInitial = true))
+
+private fun encodeAiChat(messages: List<AiMsg>): String? =
+    messages.takeIf { it.any { msg -> !msg.isInitial } }
+        ?.let { recipeAiChatJson.encodeToString(it) }
 
 private fun extractRecipe(response: String): MacroResult? {
     val idx = response.indexOf(RECIPE_JSON_MARKER)
@@ -619,12 +660,16 @@ internal fun RecipeCreationDialog(
     onSave: (FoodItemEntity) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val app         = LocalContext.current.applicationContext as MacroApp
+    val languageCode = app.languageCode
     val isEditing   = editingRecipe != null
     var selectedTab by remember { mutableIntStateOf(0) }
 
     // AI chat state lifted here so it survives tab switches
     val greeting          = stringResource(R.string.recipe_ai_greeting)
-    var aiMessages        by remember { mutableStateOf(listOf(AiMsg(greeting, isUser = false, isInitial = true))) }
+    var aiMessages        by remember(editingRecipe?.aiChatJson) {
+        mutableStateOf(decodeAiChat(editingRecipe?.aiChatJson, greeting))
+    }
     var aiInputText       by remember { mutableStateOf("") }
     var aiIsLoading       by remember { mutableStateOf(false) }
     var aiExtractedRecipe by remember { mutableStateOf<MacroResult?>(null) }
@@ -671,7 +716,8 @@ internal fun RecipeCreationDialog(
                 }
             ) { padding ->
                 Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                    if (!isEditing) {
+                    val hasStoredAiChat = aiMessages.any { !it.isInitial }
+                    if (!isEditing || hasStoredAiChat) {
                         PrimaryTabRow(selectedTabIndex = selectedTab) {
                             Tab(
                                 selected = selectedTab == 0,
@@ -692,6 +738,7 @@ internal fun RecipeCreationDialog(
                             initialValues = aiExtractedRecipe ?: initialValues,
                             initialNotes  = aiSummaryText.ifBlank { null },
                             editingRecipe = editingRecipe,
+                            aiChatJson    = encodeAiChat(aiMessages),
                             onSave        = onSave
                         )
                     } else {
@@ -703,7 +750,8 @@ internal fun RecipeCreationDialog(
                             onInputTextChange       = { aiInputText = it },
                             isLoading               = aiIsLoading,
                             onIsLoadingChange       = { aiIsLoading = it },
-                            onExtractedRecipeChange = { aiExtractedRecipe = it }
+                            onExtractedRecipeChange = { aiExtractedRecipe = it },
+                            languageCode            = languageCode
                         )
                     }
                 }
@@ -837,6 +885,7 @@ private fun ManualTab(
     initialValues: MacroResult? = null,
     initialNotes: String? = null,
     editingRecipe: FoodItemEntity? = null,
+    aiChatJson: String? = null,
     onSave: (FoodItemEntity) -> Unit
 ) {
     val haptics = LocalHapticFeedback.current
@@ -1069,6 +1118,7 @@ private fun ManualTab(
                         carbs          = c,
                         fat            = f,
                         ingredients    = notes.trim(),
+                        aiChatJson     = aiChatJson,
                         servingMode    = ServingMode.PER_SERVING.name,
                         createdAt      = editingRecipe?.createdAt ?: System.currentTimeMillis(),
                         isFavorite     = editingRecipe?.isFavorite ?: false,
@@ -1089,6 +1139,7 @@ private fun ManualTab(
                         carbs          = c,
                         fat            = f,
                         ingredients    = notes.trim(),
+                        aiChatJson     = aiChatJson,
                         servingMode    = ServingMode.PER_100G.name,
                         createdAt      = editingRecipe?.createdAt ?: System.currentTimeMillis(),
                         isFavorite     = editingRecipe?.isFavorite ?: false,
@@ -1118,13 +1169,65 @@ private fun AiTab(
     onInputTextChange: (String) -> Unit,
     isLoading: Boolean,
     onIsLoadingChange: (Boolean) -> Unit,
-    onExtractedRecipeChange: (MacroResult?) -> Unit
+    onExtractedRecipeChange: (MacroResult?) -> Unit,
+    languageCode: String
 ) {
     val rateLimitMsg = stringResource(R.string.vm_chat_error_rate_limit)
     val aiErrorFmt   = stringResource(R.string.recipe_ai_error)
     val aiErrorRetry = stringResource(R.string.recipe_ai_error_retry)
     val scope        = rememberCoroutineScope()
     val listState    = rememberLazyListState()
+    val context      = LocalContext.current
+    var showSourceMenu by remember { mutableStateOf(false) }
+    var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingImageUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingImageBase64 by remember { mutableStateOf<String?>(null) }
+    var pendingImagePath by remember { mutableStateOf<String?>(null) }
+
+    fun handleImage(uri: Uri) {
+        if (isLoading) return
+        scope.launch {
+            val processed = withContext(Dispatchers.IO) { processRecipeAiImage(uri, context) }
+            if (processed != null) {
+                pendingImageBase64 = processed.first
+                pendingImagePath = processed.second
+                pendingImageUri = Uri.fromFile(File(processed.second))
+            }
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success) tempPhotoUri?.let(::handleImage)
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri -> uri?.let(::handleImage) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val file = File(context.cacheDir, "recipe_camera").also { it.mkdirs() }
+                .let { File(it, "photo_${System.currentTimeMillis()}.jpg") }
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            tempPhotoUri = uri
+            cameraLauncher.launch(uri)
+        }
+    }
+
+    fun launchCamera() {
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED -> {
+                val file = File(context.cacheDir, "recipe_camera").also { it.mkdirs() }
+                    .let { File(it, "photo_${System.currentTimeMillis()}.jpg") }
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                tempPhotoUri = uri
+                cameraLauncher.launch(uri)
+            }
+            else -> permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
@@ -1132,16 +1235,42 @@ private fun AiTab(
 
     fun send() {
         val text = inputText.trim()
-        if (text.isBlank() || isLoading) return
-        val updatedMessages = messages + AiMsg(text, isUser = true)
+        val imageBase64 = pendingImageBase64
+        val imagePath = pendingImagePath
+        val hasImage = imageBase64 != null
+        if ((text.isBlank() && !hasImage) || isLoading) return
+        val displayText = if (text.isNotBlank()) text else context.getString(R.string.chat_photo_label)
+        val priorMessages = messages
+        val updatedMessages = messages + AiMsg(
+            text = displayText,
+            isUser = true,
+            isImageMessage = hasImage,
+            imagePath = imagePath
+        )
         onMessagesChange(updatedMessages)
         onInputTextChange("")
+        pendingImageUri = null
+        pendingImageBase64 = null
+        pendingImagePath = null
         onIsLoadingChange(true)
         scope.launch {
-            val history = updatedMessages
+            val priorHistory = priorMessages
                 .filter { !it.isInitial }
                 .map { (if (it.isUser) "user" else "model") to it.text }
-            geminiService.chatRecipe(history)
+            val result = if (imageBase64 != null) {
+                geminiService.chatRecipeWithImage(
+                    imageBase64 = imageBase64,
+                    userText = text.ifBlank { null },
+                    priorHistory = priorHistory,
+                    languageCode = languageCode
+                )
+            } else {
+                val history = updatedMessages
+                    .filter { !it.isInitial }
+                    .map { (if (it.isUser) "user" else "model") to it.text }
+                geminiService.chatRecipe(history, languageCode)
+            }
+            result
                 .onSuccess { response ->
                     val display = cleanAiText(response)
                     onMessagesChange(updatedMessages + AiMsg(display, isUser = false))
@@ -1193,6 +1322,16 @@ private fun AiTab(
         }
 
         HorizontalDivider()
+        pendingImageUri?.let { uri ->
+            RecipeAiAttachmentPreview(
+                uri = uri,
+                onRemove = {
+                    pendingImageUri = null
+                    pendingImageBase64 = null
+                    pendingImagePath = null
+                }
+            )
+        }
         Row(
             modifier          = Modifier
                 .fillMaxWidth()
@@ -1200,6 +1339,30 @@ private fun AiTab(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
+            Box {
+                IconButton(
+                    onClick = { showSourceMenu = true },
+                    enabled = !isLoading
+                ) {
+                    Icon(Icons.Filled.PhotoCamera, contentDescription = stringResource(R.string.chat_cd_photo))
+                }
+                DropdownMenu(
+                    expanded = showSourceMenu,
+                    onDismissRequest = { showSourceMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_source_camera)) },
+                        onClick = { showSourceMenu = false; launchCamera() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_source_gallery)) },
+                        onClick = {
+                            showSourceMenu = false
+                            galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                    )
+                }
+            }
             OutlinedTextField(
                 value         = inputText,
                 onValueChange = onInputTextChange,
@@ -1210,12 +1373,12 @@ private fun AiTab(
             )
             IconButton(
                 onClick  = { send() },
-                enabled  = inputText.isNotBlank() && !isLoading,
+                enabled  = (inputText.isNotBlank() || pendingImageUri != null) && !isLoading,
                 modifier = Modifier
                     .size(48.dp)
                     .clip(AppShapeMd)
                     .background(
-                        if (inputText.isNotBlank() && !isLoading)
+                        if ((inputText.isNotBlank() || pendingImageUri != null) && !isLoading)
                             MaterialTheme.colorScheme.primary
                         else
                             MaterialTheme.colorScheme.surfaceVariant
@@ -1224,7 +1387,7 @@ private fun AiTab(
                 Icon(
                     Icons.AutoMirrored.Filled.Send,
                     contentDescription = stringResource(R.string.chat_cd_send),
-                    tint = if (inputText.isNotBlank() && !isLoading)
+                    tint = if ((inputText.isNotBlank() || pendingImageUri != null) && !isLoading)
                         MaterialTheme.colorScheme.onPrimary
                     else
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -1241,6 +1404,12 @@ private fun AiChatBubble(msg: AiMsg) {
         modifier            = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
+        if (isUser && msg.imagePath != null) {
+            RecipeAiImageThumbnail(path = msg.imagePath)
+            if (msg.text.isBlank() || msg.text != stringResource(R.string.chat_photo_label)) {
+                Spacer(Modifier.height(Spacing.xs))
+            }
+        }
         Surface(
             shape = RoundedCornerShape(
                 topStart    = if (isUser) 16.dp else 4.dp,
@@ -1251,12 +1420,131 @@ private fun AiChatBubble(msg: AiMsg) {
             color    = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
-            Text(
-                text     = msg.text,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                color    = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                style    = MaterialTheme.typography.bodyMedium
-            )
+            if (msg.isImageMessage && msg.imagePath != null && msg.text == stringResource(R.string.chat_photo_label)) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    Icon(Icons.Filled.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(
+                        text = msg.text,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            } else {
+                Text(
+                    text     = msg.text,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    color    = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style    = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
     }
 }
+
+@Composable
+private fun RecipeAiAttachmentPreview(uri: Uri, onRemove: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box {
+            RecipeAiImageThumbnail(uri = uri)
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(28.dp)
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.60f), CircleShape)
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.action_delete),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecipeAiImageThumbnail(uri: Uri? = null, path: String? = null) {
+    val context = LocalContext.current
+    val key = uri?.toString() ?: path.orEmpty()
+    val bitmap by produceState<Bitmap?>(null, key) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val source = uri?.let { context.contentResolver.openInputStream(it) }
+                    ?: path?.let { File(it).inputStream() }
+                    ?: return@runCatching null
+                source.use { input ->
+                    BitmapFactory.decodeStream(input)?.let { bmp ->
+                        val maxPx = 512
+                        if (bmp.width > maxPx || bmp.height > maxPx) {
+                            val scale = maxPx.toFloat() / maxOf(bmp.width, bmp.height)
+                            Bitmap.createScaledBitmap(
+                                bmp,
+                                (bmp.width * scale).toInt(),
+                                (bmp.height * scale).toInt(),
+                                true
+                            )
+                        } else bmp
+                    }
+                }
+            }.getOrNull()
+        }
+    }
+    bitmap?.let {
+        Image(
+            bitmap = it.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(112.dp)
+                .clip(AppShapeLg)
+        )
+    }
+}
+
+private fun processRecipeAiImage(uri: Uri, context: Context): Pair<String, String>? = runCatching {
+    val dir = File(context.filesDir, "recipe_ai_images").also { it.mkdirs() }
+    val file = File(dir, "img_${System.currentTimeMillis()}.jpg")
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        val original = BitmapFactory.decodeStream(input) ?: return null
+        val displayMaxPx = 640
+        val displayScale = displayMaxPx.toFloat() / maxOf(original.width, original.height)
+        val displayBitmap = if (displayScale < 1f) {
+            Bitmap.createScaledBitmap(
+                original,
+                (original.width * displayScale).toInt(),
+                (original.height * displayScale).toInt(),
+                true
+            )
+        } else original
+        File(file.absolutePath).outputStream().use { out ->
+            displayBitmap.compress(Bitmap.CompressFormat.JPEG, 45, out)
+        }
+
+        val aiMaxPx = 1024
+        val aiScale = aiMaxPx.toFloat() / maxOf(original.width, original.height)
+        val aiBitmap = if (aiScale < 1f) {
+            Bitmap.createScaledBitmap(
+                original,
+                (original.width * aiScale).toInt(),
+                (original.height * aiScale).toInt(),
+                true
+            )
+        } else original
+        val bytes = ByteArrayOutputStream().use { out ->
+            aiBitmap.compress(Bitmap.CompressFormat.JPEG, 70, out)
+            out.toByteArray()
+        }
+        Base64.encodeToString(bytes, Base64.NO_WRAP) to file.absolutePath
+    }
+}.getOrNull()

@@ -37,6 +37,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.example.test1.MacroApp
 import com.example.test1.R
+import com.example.test1.data.api.BarcodeLookupError
+import com.example.test1.data.api.BarcodeLookupException
 import com.example.test1.data.api.BarcodeResult
 import com.example.test1.ui.theme.Spacing
 import com.google.mlkit.vision.barcode.BarcodeScanner
@@ -47,7 +49,7 @@ import kotlinx.coroutines.launch
 private sealed class ScannerState {
     object Scanning : ScannerState()
     object Loading : ScannerState()
-    data class Error(val message: String, val barcode: String) : ScannerState()
+    data class Error(val reason: BarcodeLookupError, val barcode: String) : ScannerState()
 }
 
 @Composable
@@ -89,7 +91,7 @@ fun BarcodeScannerScreen(
                 .onSuccess { result -> state = ScannerState.Scanning; onProductFound(result) }
                 .onFailure { e ->
                     state = ScannerState.Error(
-                        message = e.message ?: context.getString(R.string.scanner_not_found_title),
+                        reason = (e as? BarcodeLookupException)?.reason ?: BarcodeLookupError.Unknown,
                         barcode = barcode
                     )
                 }
@@ -129,7 +131,8 @@ fun BarcodeScannerScreen(
         when (val s = state) {
             is ScannerState.Loading -> LoadingOverlay()
             is ScannerState.Error   -> ErrorCard(
-                message = s.message,
+                reason = s.reason,
+                barcode = s.barcode,
                 onRetry = { state = ScannerState.Scanning; lastBarcode = "" },
                 onCancel = onBack
             )
@@ -180,7 +183,27 @@ private fun BoxScope.LoadingOverlay() {
 }
 
 @Composable
-private fun BoxScope.ErrorCard(message: String, onRetry: () -> Unit, onCancel: () -> Unit) {
+private fun BoxScope.ErrorCard(
+    reason: BarcodeLookupError,
+    barcode: String,
+    onRetry: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val title = when (reason) {
+        BarcodeLookupError.NotFound -> stringResource(R.string.scanner_error_not_found_title)
+        BarcodeLookupError.Network -> stringResource(R.string.scanner_error_network_title)
+        BarcodeLookupError.ServiceUnavailable -> stringResource(R.string.scanner_error_service_title)
+        BarcodeLookupError.Configuration -> stringResource(R.string.scanner_error_config_title)
+        BarcodeLookupError.Unknown -> stringResource(R.string.scanner_error_unknown_title)
+    }
+    val message = when (reason) {
+        BarcodeLookupError.NotFound -> stringResource(R.string.scanner_error_not_found_message)
+        BarcodeLookupError.Network -> stringResource(R.string.scanner_error_network_message)
+        BarcodeLookupError.ServiceUnavailable -> stringResource(R.string.scanner_error_service_message)
+        BarcodeLookupError.Configuration -> stringResource(R.string.scanner_error_config_message)
+        BarcodeLookupError.Unknown -> stringResource(R.string.scanner_error_unknown_message)
+    }
+
     Surface(
         modifier = Modifier
             .align(Alignment.Center)
@@ -191,18 +214,29 @@ private fun BoxScope.ErrorCard(message: String, onRetry: () -> Unit, onCancel: (
         Column(
             modifier = Modifier.padding(Spacing.xl),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             Text(
-                stringResource(R.string.scanner_not_found_title),
+                title,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Text(
                 message,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
+            Surface(
+                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    stringResource(R.string.scanner_error_code_label, barcode),
+                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 OutlinedButton(onClick = onRetry) {
                     Text(stringResource(R.string.scanner_retry))

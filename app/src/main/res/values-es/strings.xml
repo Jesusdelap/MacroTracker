@@ -199,6 +199,17 @@
     <string name="scanner_grant_permission">Conceder permiso</string>
     <string name="scanner_back_cd">Volver</string>
     <string name="scanner_retry">Escanear de nuevo</string>
+    <string name="scanner_error_not_found_title">Producto no encontrado</string>
+    <string name="scanner_error_not_found_message">Hemos leído el código, pero todavía no está en nuestras bases de datos. Prueba a escanearlo de nuevo o añádelo manualmente.</string>
+    <string name="scanner_error_network_title">Problema de conexión</string>
+    <string name="scanner_error_network_message">No hemos podido buscar este producto ahora mismo. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="scanner_error_service_title">Búsqueda no disponible</string>
+    <string name="scanner_error_service_message">El servicio de búsqueda de productos no está respondiendo. Inténtalo de nuevo en un momento.</string>
+    <string name="scanner_error_config_title">Búsqueda sin configurar</string>
+    <string name="scanner_error_config_message">El servicio de búsqueda de productos necesita configuración antes de poder consultar códigos de barras.</string>
+    <string name="scanner_error_unknown_title">No se pudo leer el producto</string>
+    <string name="scanner_error_unknown_message">Algo ha fallado al buscar este código de barras. Vuelve a intentarlo.</string>
+    <string name="scanner_error_code_label">Código leído: %s</string>
 
     <!-- App drawer -->
     <string name="drawer_menu_cd">Abrir menú</string>

@@ -16,8 +16,6 @@ class RateLimitException(val debugBody: String = "") : Exception("Rate limit rea
 
 class GeminiService {
 
-    private val language = Locale.getDefault().displayLanguage
-
     private val responseCache = java.util.concurrent.ConcurrentHashMap<String, FoodChatResponse>(64)
 
     private val client = OkHttpClient.Builder()
@@ -29,10 +27,12 @@ class GeminiService {
 
     suspend fun chatFood(
         history: List<Pair<String, String>>,
-        recipeContext: String = ""
+        recipeContext: String = "",
+        languageCode: String = ""
     ): Result<FoodChatResponse> = runCatching {
+        val language = languageName(languageCode)
         val cacheKey = if (history.size == 1 && history[0].first == "user")
-            history[0].second.lowercase().trim() + "|" + recipeContext
+            history[0].second.lowercase().trim() + "|" + recipeContext + "|" + language
         else null
 
         cacheKey?.let { responseCache[it] }?.let { return@runCatching it }
@@ -71,8 +71,10 @@ class GeminiService {
         userText: String? = null,
         mimeType: String = "image/jpeg",
         priorHistory: List<Pair<String, String>> = emptyList(),
-        recipeContext: String = ""
+        recipeContext: String = "",
+        languageCode: String = ""
     ): Result<FoodChatResponse> = runCatching {
+        val language = languageName(languageCode)
         withExponentialBackoff {
             val basePrompt = GeminiPrompts.imageFood(language)
             val prompt = if (recipeContext.isBlank()) basePrompt
@@ -113,7 +115,11 @@ class GeminiService {
         }
     }
 
-    suspend fun chatRecipe(history: List<Pair<String, String>>): Result<String> = runCatching {
+    suspend fun chatRecipe(
+        history: List<Pair<String, String>>,
+        languageCode: String = ""
+    ): Result<String> = runCatching {
+        val language = languageName(languageCode)
         withExponentialBackoff {
             val body = buildJsonObject {
                 putJsonArray("contents") {
@@ -132,12 +138,58 @@ class GeminiService {
         }
     }
 
+    suspend fun chatRecipeWithImage(
+        imageBase64: String,
+        userText: String? = null,
+        mimeType: String = "image/jpeg",
+        priorHistory: List<Pair<String, String>> = emptyList(),
+        languageCode: String = ""
+    ): Result<String> = runCatching {
+        val language = languageName(languageCode)
+        withExponentialBackoff {
+            val body = buildJsonObject {
+                putJsonArray("contents") {
+                    priorHistory.forEach { (role, text) ->
+                        addJsonObject {
+                            put("role", role)
+                            putJsonArray("parts") { addJsonObject { put("text", text) } }
+                        }
+                    }
+                    addJsonObject {
+                        put("role", "user")
+                        putJsonArray("parts") {
+                            addJsonObject {
+                                putJsonObject("inline_data") {
+                                    put("mime_type", mimeType)
+                                    put("data", imageBase64)
+                                }
+                            }
+                            addJsonObject {
+                                put("text", userText?.takeIf { it.isNotBlank() } ?: "Use this image to help create the recipe.")
+                            }
+                        }
+                    }
+                }
+                putJsonObject("systemInstruction") {
+                    putJsonArray("parts") { addJsonObject { put("text", GeminiPrompts.imageRecipe(language)) } }
+                }
+            }.toString()
+            callGemini(body)
+        }
+    }
+
     private fun sanitizeNumericFields(raw: String): String {
         // Gemini sometimes emits a colon inside a numeric literal (e.g. "cal": 12:3 or "prot": 1:1.4).
         // Strip the stray colon so the value parses correctly.
         return raw.replace(
             Regex(""""(cal|prot|carb|fat)"\s*:\s*(-?\d+(?::\d+)+(?:\.\d+)?)""")
         ) { m -> "\"${m.groupValues[1]}\": ${m.groupValues[2].replace(":", "")}" }
+    }
+
+    private fun languageName(languageCode: String): String = when (languageCode.lowercase(Locale.ROOT)) {
+        "es" -> "Spanish"
+        "en" -> "English"
+        else -> Locale.getDefault().displayLanguage.ifBlank { "English" }
     }
 
     private suspend fun callGemini(requestBody: String): String = withContext(Dispatchers.IO) {

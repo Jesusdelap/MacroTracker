@@ -1,6 +1,7 @@
 package com.example.test1.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -10,6 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -132,16 +135,26 @@ fun MacroItemCard(
 
                 Spacer(Modifier.height(Spacing.md))
 
-                // Macro pills row
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    bottomLeading?.invoke()
-                    MacroPill(MacroType.PROTEIN, "${protein.roundToInt()}g")
-                    MacroPill(MacroType.CARBS,   "${carbs.roundToInt()}g")
-                    MacroPill(MacroType.FAT,     "${fat.roundToInt()}g")
-                    bottomTrailing?.invoke()
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(end = 58.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        bottomLeading?.invoke()
+                        MacroPill(MacroType.PROTEIN, "${protein.roundToInt()}g")
+                        MacroPill(MacroType.CARBS,   "${carbs.roundToInt()}g")
+                        MacroPill(MacroType.FAT,     "${fat.roundToInt()}g")
+                        bottomTrailing?.invoke()
+                    }
+                    MacroDonutChart(
+                        protein = protein,
+                        carbs   = carbs,
+                        fat     = fat,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(46.dp)
+                    )
                 }
 
                 if (extraContent != null) {
@@ -190,5 +203,44 @@ fun MacroItemCard(
         ) { card() }
     } else {
         Box(modifier = modifier) { card() }
+    }
+}
+
+@Composable
+private fun MacroDonutChart(
+    protein: Float,
+    carbs: Float,
+    fat: Float,
+    modifier: Modifier = Modifier
+) {
+    val values = listOf(
+        protein.coerceAtLeast(0f) to MaterialTheme.macroColors.protein,
+        carbs.coerceAtLeast(0f) to MaterialTheme.macroColors.carbs,
+        fat.coerceAtLeast(0f) to MaterialTheme.macroColors.fat
+    )
+    val total = values.sumOf { it.first.toDouble() }.toFloat()
+    if (total <= 0f) return
+
+    Canvas(modifier = modifier) {
+        val strokeWidth = 11.dp.toPx()
+        val inset = strokeWidth / 2f
+        val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+        var startAngle = -90f
+
+        values.forEach { (value, color) ->
+            if (value > 0f) {
+                val sweep = (value / total) * 360f
+                drawArc(
+                    color      = color.copy(alpha = 0.92f),
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter  = false,
+                    topLeft    = androidx.compose.ui.geometry.Offset(inset, inset),
+                    size       = arcSize,
+                    style      = Stroke(width = strokeWidth)
+                )
+                startAngle += sweep
+            }
+        }
     }
 }

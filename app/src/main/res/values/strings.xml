@@ -199,6 +199,17 @@
     <string name="scanner_grant_permission">Grant Permission</string>
     <string name="scanner_back_cd">Back</string>
     <string name="scanner_retry">Scan again</string>
+    <string name="scanner_error_not_found_title">Product not found</string>
+    <string name="scanner_error_not_found_message">We read the barcode, but it is not in our product databases yet. Try scanning again, or add it manually.</string>
+    <string name="scanner_error_network_title">Connection problem</string>
+    <string name="scanner_error_network_message">We could not look up this product right now. Check your connection and try again.</string>
+    <string name="scanner_error_service_title">Lookup unavailable</string>
+    <string name="scanner_error_service_message">The product lookup service is not responding. Try again in a moment.</string>
+    <string name="scanner_error_config_title">Product lookup not ready</string>
+    <string name="scanner_error_config_message">The product lookup service needs configuration before it can search barcodes.</string>
+    <string name="scanner_error_unknown_title">Could not read product</string>
+    <string name="scanner_error_unknown_message">Something went wrong while looking up this barcode. Please try again.</string>
+    <string name="scanner_error_code_label">Code read: %s</string>
 
     <!-- App drawer -->
     <string name="drawer_menu_cd">Open menu</string>
